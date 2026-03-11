@@ -20,6 +20,10 @@
   let conditions = [];
   let selectedId = null;
 
+  function getImageUrl(image) {
+    return image?.url || image?.asset_url || image?.thumb_url || (image?.filename ? `/uploads/${image.filename}` : "");
+  }
+
   // --- API Helpers ---
   async function api(url, opts = {}) {
     const res = await fetch(url, {
@@ -218,7 +222,7 @@
       .map(
         (img) => `
         <div class="image-card" data-img-id="${img.id}">
-          <img src="/uploads/${img.filename}" alt="${esc(img.view_label || img.original_name)}">
+          <img src="${getImageUrl(img)}" alt="${esc(img.view_label || img.original_name)}">
           <div class="image-info">
             <input type="text" value="${esc(img.view_label)}" placeholder="View label" data-field="view_label">
             <div class="image-actions">

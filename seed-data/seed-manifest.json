@@ -1,0 +1,363 @@
+[
+  {
+    "slug": "frozen-shoulder",
+    "name": "Frozen Shoulder",
+    "region": "shoulder",
+    "images": [
+      {
+        "title": "Frozen Shoulder – Coronal MRI",
+        "view_label": "Coronal MRI",
+        "asset_url": "/ortho-images/frozen-shoulder/frozen-shoulder-01-medium.webp",
+        "thumb_url": "/ortho-images/frozen-shoulder/frozen-shoulder-01-thumb.webp",
+        "license": "CC BY-SA 3.0"
+      }
+    ]
+  },
+  {
+    "slug": "rotator-cuff-tear",
+    "name": "Rotator Cuff Tear",
+    "region": "shoulder",
+    "images": [
+      {
+        "title": "Rotator Cuff Tear – Coronal MRI (Supraspinatus)",
+        "view_label": "Coronal MRI (Supraspinatus)",
+        "asset_url": "/ortho-images/rotator-cuff-tear/rotator-cuff-01-medium.webp",
+        "thumb_url": "/ortho-images/rotator-cuff-tear/rotator-cuff-01-thumb.webp",
+        "license": "CC BY-SA 3.0"
+      }
+    ]
+  },
+  {
+    "slug": "tennis-elbow",
+    "name": "Tennis Elbow",
+    "region": "elbow",
+    "images": [
+      {
+        "title": "Tennis Elbow – Clinical Presentation",
+        "view_label": "Clinical Presentation",
+        "asset_url": "/ortho-images/tennis-elbow/tennis-elbow-01-medium.webp",
+        "thumb_url": "/ortho-images/tennis-elbow/tennis-elbow-01-thumb.webp",
+        "license": "CC BY-SA 4.0"
+      }
+    ]
+  },
+  {
+    "slug": "carpal-tunnel-syndrome",
+    "name": "Carpal Tunnel Syndrome",
+    "region": "wrist",
+    "images": [
+      {
+        "title": "Carpal Tunnel Syndrome – Clinical Photograph",
+        "view_label": "Clinical Photograph",
+        "asset_url": "/ortho-images/carpal-tunnel-syndrome/carpal-tunnel-01-medium.webp",
+        "thumb_url": "/ortho-images/carpal-tunnel-syndrome/carpal-tunnel-01-thumb.webp",
+        "license": "CC BY-SA 4.0"
+      }
+    ]
+  },
+  {
+    "slug": "distal-radius-fracture",
+    "name": "Distal Radius Fracture",
+    "region": "wrist",
+    "images": [
+      {
+        "title": "Colles Fracture (Distal Radius) – Lateral Radiograph",
+        "view_label": "Lateral Radiograph",
+        "asset_url": "/ortho-images/distal-radius-fracture/colles-fx-01-medium.webp",
+        "thumb_url": "/ortho-images/distal-radius-fracture/colles-fx-01-thumb.webp",
+        "license": "CC BY 3.0"
+      }
+    ]
+  },
+  {
+    "slug": "rheumatoid-arthritis",
+    "name": "Rheumatoid Arthritis",
+    "region": "hand",
+    "images": [
+      {
+        "title": "Rheumatoid Arthritis – Hand Radiograph",
+        "view_label": "Hand Radiograph",
+        "asset_url": "/ortho-images/rheumatoid-arthritis/ra-hand-01-medium.webp",
+        "thumb_url": "/ortho-images/rheumatoid-arthritis/ra-hand-01-thumb.webp",
+        "license": "CC BY-SA 3.0"
+      }
+    ]
+  },
+  {
+    "slug": "trigger-finger",
+    "name": "Trigger Finger",
+    "region": "hand",
+    "images": [
+      {
+        "title": "Trigger Finger – Clinical Photograph",
+        "view_label": "Clinical Photograph",
+        "asset_url": "/ortho-images/trigger-finger/trigger-finger-01-medium.webp",
+        "thumb_url": "/ortho-images/trigger-finger/trigger-finger-01-thumb.webp",
+        "license": "CC BY-SA 4.0"
+      }
+    ]
+  },
+  {
+    "slug": "hamstring-strain",
+    "name": "Hamstring Strain",
+    "region": "hip",
+    "images": [
+      {
+        "title": "Hamstring Strain - Injury Grades",
+        "view_label": "Injury grades",
+        "asset_url": "/imported-drive-images/hamstring-strain.png"
+      }
+    ]
+  },
+  {
+    "slug": "hip-fracture",
+    "name": "Hip Fracture",
+    "region": "hip",
+    "images": [
+      {
+        "title": "Hip Fracture (Neck of Femur) – AP Radiograph",
+        "view_label": "AP Radiograph",
+        "asset_url": "/ortho-images/hip-fracture/hip-fracture-01-medium.webp",
+        "thumb_url": "/ortho-images/hip-fracture/hip-fracture-01-thumb.webp",
+        "license": "CC BY-SA 4.0"
+      }
+    ]
+  },
+  {
+    "slug": "osteoarthritis-hip",
+    "name": "Hip Osteoarthritis",
+    "region": "hip",
+    "images": [
+      {
+        "title": "Hip Osteoarthritis (Coxarthrosis) – AP Radiograph",
+        "view_label": "AP Radiograph",
+        "asset_url": "/ortho-images/osteoarthritis-hip/oa-hip-01-medium.webp",
+        "thumb_url": "/ortho-images/osteoarthritis-hip/oa-hip-01-thumb.webp",
+        "license": "Public domain"
+      }
+    ]
+  },
+  {
+    "slug": "acl-tear",
+    "name": "ACL Tear",
+    "region": "knee",
+    "images": [
+      {
+        "title": "ACL Tear – Sagittal MRI",
+        "view_label": "Sagittal MRI",
+        "asset_url": "/ortho-images/acl-tear/acl-tear-01-medium.webp",
+        "thumb_url": "/ortho-images/acl-tear/acl-tear-01-thumb.webp",
+        "license": "CC BY-SA 4.0"
+      }
+    ]
+  },
+  {
+    "slug": "osteoarthritis-knee",
+    "name": "Knee Osteoarthritis",
+    "region": "knee",
+    "images": [
+      {
+        "title": "Knee Osteoarthritis (Left) – AP Radiograph",
+        "view_label": "AP Radiograph",
+        "asset_url": "/ortho-images/osteoarthritis-knee/oa-knee-01-medium.webp",
+        "thumb_url": "/ortho-images/osteoarthritis-knee/oa-knee-01-thumb.webp",
+        "license": "CC BY-SA 3.0"
+      },
+      {
+        "title": "Varus Knee Osteoarthritis – AP Radiograph",
+        "view_label": "AP Radiograph",
+        "asset_url": "/ortho-images/osteoarthritis-knee/oa-knee-02-medium.webp",
+        "thumb_url": "/ortho-images/osteoarthritis-knee/oa-knee-02-thumb.webp",
+        "license": "CC BY-SA 4.0"
+      }
+    ]
+  },
+  {
+    "slug": "meniscus-tear",
+    "name": "Meniscus Tear",
+    "region": "knee",
+    "images": [
+      {
+        "title": "Meniscus Tear – Sagittal MRI",
+        "view_label": "Sagittal MRI",
+        "asset_url": "/ortho-images/meniscus-tear/meniscus-tear-01-medium.webp",
+        "thumb_url": "/ortho-images/meniscus-tear/meniscus-tear-01-thumb.webp",
+        "license": "CC BY-SA 4.0"
+      }
+    ]
+  },
+  {
+    "slug": "peroneal-nerve-injury",
+    "name": "Peroneal Nerve Injury",
+    "region": "knee",
+    "images": [
+      {
+        "title": "Common Peroneal Nerve - Anatomy Diagram",
+        "view_label": "Anatomy",
+        "asset_url": "/imported-drive-images/peroneal-nerve.png"
+      }
+    ]
+  },
+  {
+    "slug": "achilles-tendon-rupture",
+    "name": "Achilles Tendon Rupture",
+    "region": "ankle",
+    "images": [
+      {
+        "title": "Achilles Tendon Rupture – Clinical Photograph",
+        "view_label": "Clinical Photograph",
+        "asset_url": "/ortho-images/achilles-tendon-rupture/achilles-rupture-01-medium.webp",
+        "thumb_url": "/ortho-images/achilles-tendon-rupture/achilles-rupture-01-thumb.webp",
+        "license": "CC BY-SA 4.0"
+      }
+    ]
+  },
+  {
+    "slug": "ankle-fracture",
+    "name": "Ankle Fracture",
+    "region": "ankle",
+    "images": [
+      {
+        "title": "Trimalleolar Ankle Fracture – AP Radiograph",
+        "view_label": "AP Radiograph",
+        "asset_url": "/ortho-images/ankle-fracture/ankle-fx-01-medium.webp",
+        "thumb_url": "/ortho-images/ankle-fracture/ankle-fx-01-thumb.webp",
+        "license": "CC BY-SA 4.0"
+      }
+    ]
+  },
+  {
+    "slug": "calf-strain",
+    "name": "Calf Strain",
+    "region": "ankle",
+    "images": [
+      {
+        "title": "Calf Muscles - Type of Injuries",
+        "view_label": "Injury grades",
+        "asset_url": "/imported-drive-images/calf-strain.png"
+      }
+    ]
+  },
+  {
+    "slug": "strayer-procedure",
+    "name": "Strayer Procedure",
+    "region": "ankle",
+    "images": [
+      {
+        "title": "Gastrocnemius Recession Zones - Strayer Comparison",
+        "view_label": "Procedure map",
+        "asset_url": "/imported-drive-images/strayer-procedure.jpg"
+      }
+    ]
+  },
+  {
+    "slug": "hallux-valgus",
+    "name": "Hallux Valgus",
+    "region": "foot",
+    "images": [
+      {
+        "title": "Hallux Valgus (Bunion) – AP Radiograph",
+        "view_label": "AP Radiograph",
+        "asset_url": "/ortho-images/hallux-valgus/bunion-01-medium.webp",
+        "thumb_url": "/ortho-images/hallux-valgus/bunion-01-thumb.webp",
+        "license": "CC BY-SA 2.0 DE"
+      }
+    ]
+  },
+  {
+    "slug": "metatarsalgia",
+    "name": "Metatarsalgia",
+    "region": "foot",
+    "images": [
+      {
+        "title": "Metatarsalgia - Forefoot Pain Diagram",
+        "view_label": "Clinical diagram",
+        "asset_url": "/imported-drive-images/metatarsalgia.png"
+      }
+    ]
+  },
+  {
+    "slug": "plantar-fasciitis",
+    "name": "Plantar Fasciitis",
+    "region": "foot",
+    "images": [
+      {
+        "title": "Plantar Fasciitis – Orthotic Insoles",
+        "view_label": "Orthotic Insoles",
+        "asset_url": "/ortho-images/plantar-fasciitis/plantar-fasciitis-01-medium.webp",
+        "thumb_url": "/ortho-images/plantar-fasciitis/plantar-fasciitis-01-thumb.webp",
+        "license": "CC BY-SA 4.0"
+      }
+    ]
+  },
+  {
+    "slug": "lumbar-disc-herniation",
+    "name": "Lumbar Disc Herniation",
+    "region": "spine",
+    "images": [
+      {
+        "title": "Lumbar Disc Herniation – Sagittal MRI",
+        "view_label": "Sagittal MRI",
+        "asset_url": "/ortho-images/lumbar-disc-herniation/disc-herniation-01-medium.webp",
+        "thumb_url": "/ortho-images/lumbar-disc-herniation/disc-herniation-01-thumb.webp",
+        "license": "CC0"
+      }
+    ]
+  },
+  {
+    "slug": "osteoporosis",
+    "name": "Osteoporosis",
+    "region": "spine",
+    "images": [
+      {
+        "title": "Osteoporosis – Spinal Illustration",
+        "view_label": "Spinal Illustration",
+        "asset_url": "/ortho-images/osteoporosis/osteoporosis-spine-01-medium.webp",
+        "thumb_url": "/ortho-images/osteoporosis/osteoporosis-spine-01-thumb.webp",
+        "license": "CC BY-SA 3.0"
+      }
+    ]
+  },
+  {
+    "slug": "scoliosis",
+    "name": "Scoliosis",
+    "region": "spine",
+    "images": [
+      {
+        "title": "Scoliosis – Full Spine AP Radiograph",
+        "view_label": "Full Spine AP Radiograph",
+        "asset_url": "/ortho-images/scoliosis/scoliosis-01-medium.webp",
+        "thumb_url": "/ortho-images/scoliosis/scoliosis-01-thumb.webp",
+        "license": "CC BY-SA 4.0"
+      }
+    ]
+  },
+  {
+    "slug": "spinal-stenosis",
+    "name": "Spinal Stenosis",
+    "region": "spine",
+    "images": [
+      {
+        "title": "Lumbar Spinal Stenosis – Axial MRI",
+        "view_label": "Axial MRI",
+        "asset_url": "/ortho-images/spinal-stenosis/spinal-stenosis-01-medium.webp",
+        "thumb_url": "/ortho-images/spinal-stenosis/spinal-stenosis-01-thumb.webp",
+        "license": "CC BY-SA 3.0"
+      }
+    ]
+  },
+  {
+    "slug": "vertebral-compression-fracture",
+    "name": "Vertebral Compression Fracture",
+    "region": "spine",
+    "images": [
+      {
+        "title": "Vertebral Compression Fracture (L1-L2) – AP Radiograph",
+        "view_label": "AP Radiograph",
+        "asset_url": "/ortho-images/vertebral-compression-fracture/compression-fx-01-medium.webp",
+        "thumb_url": "/ortho-images/vertebral-compression-fracture/compression-fx-01-thumb.webp",
+        "license": "Public domain"
+      }
+    ]
+  }
+]

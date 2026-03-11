@@ -14,6 +14,7 @@ const WRITABLE_BASE = IS_VERCEL ? "/tmp/orthoref" : __dirname;
 const UPLOADS_DIR = join(WRITABLE_BASE, "uploads");
 const DATA_DIR = join(WRITABLE_BASE, "data");
 const DB_PATH = join(DATA_DIR, "orthoref.db");
+const SEED_MANIFEST_PATH = join(__dirname, "seed-data", "seed-manifest.json");
 const ALLOWED_EXTS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 
 let appPromise;
@@ -54,6 +55,8 @@ async function buildApp() {
       original_name TEXT,
       view_label TEXT DEFAULT '',
       sort_order INTEGER DEFAULT 0,
+      asset_url TEXT DEFAULT '',
+      thumb_url TEXT DEFAULT '',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -90,6 +93,66 @@ async function buildApp() {
     return result;
   }
 
+  function ensureColumn(table, name, definition) {
+    const columns = getAll(`PRAGMA table_info(${table})`);
+    if (columns.some((column) => column.name === name)) {
+      return;
+    }
+    db.run(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+  }
+
+  ensureColumn("images", "asset_url", "asset_url TEXT DEFAULT ''");
+  ensureColumn("images", "thumb_url", "thumb_url TEXT DEFAULT ''");
+
+  function resolveImage(image) {
+    const url = image.asset_url || (image.filename ? `/uploads/${image.filename}` : "");
+    return {
+      ...image,
+      url,
+      thumb_url: image.thumb_url || url,
+    };
+  }
+
+  async function seedDatabaseIfEmpty() {
+    const conditionCount = getOne("SELECT COUNT(*) AS count FROM conditions");
+    if (Number(conditionCount?.count || 0) > 0) {
+      return;
+    }
+
+    if (!existsSync(SEED_MANIFEST_PATH)) {
+      return;
+    }
+
+    const raw = await readFile(SEED_MANIFEST_PATH, "utf8");
+    const seedConditions = JSON.parse(raw);
+
+    for (const condition of seedConditions) {
+      const conditionId = runQuery(
+        "INSERT INTO conditions (name, aliases, body_region) VALUES (?, ?, ?)",
+        [condition.name, "", condition.region]
+      ).lastInsertRowid;
+
+      condition.images.forEach((image, index) => {
+        runQuery(
+          "INSERT INTO images (condition_id, filename, original_name, view_label, sort_order, asset_url, thumb_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [
+            conditionId,
+            "",
+            image.title,
+            image.view_label || "",
+            index,
+            image.asset_url,
+            image.thumb_url || "",
+          ]
+        );
+      });
+    }
+
+    await saveDatabase();
+  }
+
+  await seedDatabaseIfEmpty();
+
   const app = Fastify({ logger: false });
 
   await app.register(fastifyMultipart, {
@@ -117,7 +180,7 @@ async function buildApp() {
       images: getAll(
         "SELECT * FROM images WHERE condition_id = ? ORDER BY sort_order, id",
         [condition.id]
-      ),
+      ).map(resolveImage),
     }));
   });
 
@@ -159,10 +222,12 @@ async function buildApp() {
     const id = Number(req.params.id);
     const images = getAll("SELECT * FROM images WHERE condition_id = ?", [id]);
     for (const image of images) {
-      try {
-        await unlink(join(UPLOADS_DIR, image.filename));
-      } catch {
-        // Ignore missing files during cleanup.
+      if (!image.asset_url && image.filename) {
+        try {
+          await unlink(join(UPLOADS_DIR, image.filename));
+        } catch {
+          // Ignore missing files during cleanup.
+        }
       }
     }
     runQuery("DELETE FROM images WHERE condition_id = ?", [id]);
@@ -207,7 +272,7 @@ async function buildApp() {
       );
       const maxSort = maxSortResult?.max_sort || 0;
       const result = runQuery(
-        "INSERT INTO images (condition_id, filename, original_name, view_label, sort_order) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO images (condition_id, filename, original_name, view_label, sort_order, asset_url, thumb_url) VALUES (?, ?, ?, ?, ?, '', '')",
         [conditionId, newFilename, part.filename, viewLabel, maxSort + 1]
       );
 
@@ -216,6 +281,8 @@ async function buildApp() {
         filename: newFilename,
         original_name: part.filename,
         view_label: viewLabel,
+        url: `/uploads/${newFilename}`,
+        thumb_url: `/uploads/${newFilename}`,
       });
     }
 
@@ -246,10 +313,12 @@ async function buildApp() {
       throw { statusCode: 404, message: "Image not found" };
     }
 
-    try {
-      await unlink(join(UPLOADS_DIR, existing.filename));
-    } catch {
-      // Ignore missing files during cleanup.
+    if (!existing.asset_url && existing.filename) {
+      try {
+        await unlink(join(UPLOADS_DIR, existing.filename));
+      } catch {
+        // Ignore missing files during cleanup.
+      }
     }
     runQuery("DELETE FROM images WHERE id = ?", [id]);
     await saveDatabase();

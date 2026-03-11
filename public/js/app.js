@@ -56,6 +56,14 @@
   let hintTimeout = null;
   const recentConditions = JSON.parse(localStorage.getItem("recentConditions") || "[]");
 
+  function getImageUrl(image) {
+    return image?.url || image?.asset_url || (image?.filename ? `/uploads/${image.filename}` : "");
+  }
+
+  function getThumbUrl(image) {
+    return image?.thumb_url || getImageUrl(image);
+  }
+
   // ===== NAVIGATION HELPERS =====
   function showScreen(screen) {
     welcomeScreen.style.display = "none";
@@ -127,7 +135,7 @@
       .slice(0, 3)
       .map(c => {
         const thumb = c.images?.length
-          ? `<img class="recent-thumb" src="/uploads/${c.images[0].filename}" alt="${c.name}" loading="lazy">`
+          ? `<img class="recent-thumb" src="${getThumbUrl(c.images[0])}" alt="${c.name}" loading="lazy">`
           : `<div class="recent-thumb-placeholder">🦴</div>`;
         return `
           <button class="recent-item" data-id="${c.id}">
@@ -171,7 +179,7 @@
     conditionChips.innerHTML = items
       .map(c => {
         const thumb = c.images?.length
-          ? `<img class="chip-thumb" src="/uploads/${c.images[0].filename}" alt="${c.name}" loading="lazy">`
+          ? `<img class="chip-thumb" src="${getThumbUrl(c.images[0])}" alt="${c.name}" loading="lazy">`
           : `<div class="chip-thumb-placeholder">🦴</div>`;
         return `
           <button class="condition-chip" data-id="${c.id}">
@@ -209,7 +217,7 @@
         const viewLabel = img.view_label ? ` • ${img.view_label}` : "";
         return `
           <div class="tray-thumbnail" data-idx="${idx}">
-            <img src="/uploads/${img.filename}" alt="Image ${idx + 1}${viewLabel}" loading="lazy">
+            <img src="${getThumbUrl(img)}" alt="Image ${idx + 1}${viewLabel}" loading="lazy">
             <span class="tray-label">${idx === 0 ? "Best" : idx + 1}${viewLabel}</span>
           </div>`;
       })
@@ -238,7 +246,7 @@
     resultsGridFallback.innerHTML = results
       .map(c => {
         const thumb = c.images?.length
-          ? `<img class="thumb" src="/uploads/${c.images[0].filename}" alt="${c.name}" loading="lazy">`
+          ? `<img class="thumb" src="${getThumbUrl(c.images[0])}" alt="${c.name}" loading="lazy">`
           : `<div class="thumb-placeholder">🦴</div>`;
         const region = c.body_region ? `<span class="card-region">${c.body_region}</span>` : "";
         return `
@@ -287,7 +295,7 @@
 
     overlayTitle.textContent = selectedCondition.name;
     overlayViewLabel.textContent = img.view_label ? `— ${img.view_label}` : "";
-    presentationImage.src = `/uploads/${img.filename}`;
+    presentationImage.src = getImageUrl(img);
 
     presentationImage.onload = () => resizeCanvas();
 

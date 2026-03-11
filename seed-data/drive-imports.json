@@ -1,0 +1,62 @@
+[
+  {
+    "slug": "calf-strain",
+    "name": "Calf Strain",
+    "region": "ankle",
+    "images": [
+      {
+        "title": "Calf Muscles - Type of Injuries",
+        "view_label": "Injury grades",
+        "asset_url": "/imported-drive-images/calf-strain.png"
+      }
+    ]
+  },
+  {
+    "slug": "hamstring-strain",
+    "name": "Hamstring Strain",
+    "region": "hip",
+    "images": [
+      {
+        "title": "Hamstring Strain - Injury Grades",
+        "view_label": "Injury grades",
+        "asset_url": "/imported-drive-images/hamstring-strain.png"
+      }
+    ]
+  },
+  {
+    "slug": "metatarsalgia",
+    "name": "Metatarsalgia",
+    "region": "foot",
+    "images": [
+      {
+        "title": "Metatarsalgia - Forefoot Pain Diagram",
+        "view_label": "Clinical diagram",
+        "asset_url": "/imported-drive-images/metatarsalgia.png"
+      }
+    ]
+  },
+  {
+    "slug": "peroneal-nerve-injury",
+    "name": "Peroneal Nerve Injury",
+    "region": "knee",
+    "images": [
+      {
+        "title": "Common Peroneal Nerve - Anatomy Diagram",
+        "view_label": "Anatomy",
+        "asset_url": "/imported-drive-images/peroneal-nerve.png"
+      }
+    ]
+  },
+  {
+    "slug": "strayer-procedure",
+    "name": "Strayer Procedure",
+    "region": "ankle",
+    "images": [
+      {
+        "title": "Gastrocnemius Recession Zones - Strayer Comparison",
+        "view_label": "Procedure map",
+        "asset_url": "/imported-drive-images/strayer-procedure.jpg"
+      }
+    ]
+  }
+]
