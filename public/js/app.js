@@ -33,17 +33,30 @@
   const emptyTrayState = document.getElementById("emptyTrayState");
   const backFromTray = document.getElementById("backFromTray");
 
-  // ===== PRESENTATION OVERLAY =====
+  // ===== PRESENTATION SURFACE =====
   const overlayTitle = document.getElementById("overlayTitle");
   const overlayViewLabel = document.getElementById("overlayViewLabel");
+  const imageCounter = document.getElementById("imageCounter");
   const overlayClose = document.getElementById("overlayClose");
   const navPrev = document.getElementById("navPrev");
   const navNext = document.getElementById("navNext");
   const presentationImage = document.getElementById("presentationImage");
   const annotationCanvas = document.getElementById("annotationCanvas");
   const imageContainer = document.getElementById("imageContainer");
-  const dotIndicators = document.getElementById("dotIndicators");
-  const annotationHint = document.getElementById("annotationHint");
+  const imageFrame = document.getElementById("imageFrame");
+  const filmstripRail = document.getElementById("filmstripRail");
+  const filmstripTrack = document.getElementById("filmstripTrack");
+  
+  // Zoom controls
+  const zoomIn = document.getElementById("zoomIn");
+  const zoomOut = document.getElementById("zoomOut");
+  const zoomReset = document.getElementById("zoomReset");
+  const zoomLevelDisplay = document.getElementById("zoomLevel");
+  
+  // Annotation controls
+  const annotateToggle = document.getElementById("annotateToggle");
+  const clearAnnotationsBtn = document.getElementById("clearAnnotations");
+  const annotationIndicator = document.getElementById("annotationIndicator");
 
   // ===== STATE =====
   let conditions = [];
@@ -53,8 +66,16 @@
   let currentImageIndex = 0;
   let isDrawing = false;
   let ctx = null;
-  let hintTimeout = null;
   const recentConditions = JSON.parse(localStorage.getItem("recentConditions") || "[]");
+  
+  // Presentation state
+  let zoomLevel = 1;
+  let panX = 0;
+  let panY = 0;
+  let isPanning = false;
+  let panStartX = 0;
+  let panStartY = 0;
+  let annotationEnabled = false; // Start with annotation off for clean presentation
 
   // ===== NAVIGATION HELPERS =====
   function showScreen(screen) {
@@ -263,21 +284,29 @@
     });
   });
 
-  // ===== PRESENTATION MODE =====
+  // ===== PRESENTATION SURFACE =====
   function openPresentation() {
     if (!selectedCondition || !selectedCondition.images) return;
+    
+    // Reset state for fresh presentation
+    zoomLevel = 1;
+    panX = 0;
+    panY = 0;
+    annotationEnabled = false; // Start clean, user can enable when needed
+    
     showCurrentImage();
+    renderFilmstrip();
+    updateZoomDisplay();
+    updateAnnotationState();
+    
     overlay.classList.add("active");
     document.body.style.overflow = "hidden";
-
-    annotationHint.classList.remove("hidden");
-    clearTimeout(hintTimeout);
-    hintTimeout = setTimeout(() => annotationHint.classList.add("hidden"), 4000);
   }
 
   function closePresentation() {
     overlay.classList.remove("active");
     document.body.style.overflow = "";
+    resetZoom();
   }
 
   function showCurrentImage() {
@@ -285,64 +314,234 @@
     const images = selectedCondition.images;
     const img = images[currentImageIndex];
 
+    // Update metadata
     overlayTitle.textContent = selectedCondition.name;
-    overlayViewLabel.textContent = img.view_label ? `— ${img.view_label}` : "";
+    overlayViewLabel.textContent = img.view_label || "";
+    imageCounter.textContent = images.length > 1 ? `${currentImageIndex + 1} of ${images.length}` : "";
+
+    // Load image
     presentationImage.src = `/uploads/${img.filename}`;
+    presentationImage.onload = () => {
+      resizeCanvas();
+      resetZoom();
+    };
 
-    presentationImage.onload = () => resizeCanvas();
-
-    navPrev.style.display = images.length > 1 ? "" : "none";
-    navNext.style.display = images.length > 1 ? "" : "none";
-
-    if (images.length > 1) {
-      dotIndicators.innerHTML = images
-        .map((_, i) => `<div class="dot${i === currentImageIndex ? " active" : ""}" data-i="${i}"></div>`)
-        .join("");
-      dotIndicators.style.display = "";
-    } else {
-      dotIndicators.style.display = "none";
-    }
-
+    // Navigation visibility
+    const hasMultiple = images.length > 1;
+    navPrev.style.display = hasMultiple ? "" : "none";
+    navNext.style.display = hasMultiple ? "" : "none";
+    
+    // Update filmstrip selection
+    updateFilmstripSelection();
+    
     clearAnnotations();
   }
 
+  function renderFilmstrip() {
+    if (!selectedCondition || !selectedCondition.images) return;
+    const images = selectedCondition.images;
+    
+    // Single image - hide filmstrip
+    if (images.length <= 1) {
+      filmstripRail.classList.add("single-image");
+      return;
+    }
+    
+    filmstripRail.classList.remove("single-image");
+    filmstripTrack.innerHTML = images
+      .map((img, idx) => {
+        const label = img.view_label || `${idx + 1}`;
+        const selected = idx === currentImageIndex ? "selected" : "";
+        return `
+          <button class="filmstrip-thumb ${selected}" data-idx="${idx}" tabindex="0">
+            <img src="/uploads/${img.filename}" alt="${label}" loading="lazy">
+            <span class="thumb-label">${esc(label)}</span>
+          </button>`;
+      })
+      .join("");
+    
+    // Scroll selected into view
+    scrollFilmstripToSelected();
+  }
+
+  function updateFilmstripSelection() {
+    const thumbs = filmstripTrack.querySelectorAll(".filmstrip-thumb");
+    thumbs.forEach((thumb, idx) => {
+      thumb.classList.toggle("selected", idx === currentImageIndex);
+    });
+    scrollFilmstripToSelected();
+  }
+
+  function scrollFilmstripToSelected() {
+    const selected = filmstripTrack.querySelector(".filmstrip-thumb.selected");
+    if (selected) {
+      selected.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    }
+  }
+
+  // Filmstrip click handler
+  filmstripTrack.addEventListener("click", (e) => {
+    const thumb = e.target.closest(".filmstrip-thumb");
+    if (!thumb) return;
+    currentImageIndex = Number(thumb.dataset.idx);
+    showCurrentImage();
+  });
+
+  // Navigation buttons
   navPrev.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (!selectedCondition) return;
-    currentImageIndex = (currentImageIndex - 1 + selectedCondition.images.length) % selectedCondition.images.length;
-    showCurrentImage();
+    navigatePrev();
   });
 
   navNext.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (!selectedCondition) return;
-    currentImageIndex = (currentImageIndex + 1) % selectedCondition.images.length;
-    showCurrentImage();
+    navigateNext();
   });
 
-  dotIndicators.addEventListener("click", (e) => {
-    const dot = e.target.closest(".dot");
-    if (!dot) return;
-    currentImageIndex = Number(dot.dataset.i);
+  function navigatePrev() {
+    if (!selectedCondition || selectedCondition.images.length <= 1) return;
+    currentImageIndex = (currentImageIndex - 1 + selectedCondition.images.length) % selectedCondition.images.length;
     showCurrentImage();
-  });
+  }
+
+  function navigateNext() {
+    if (!selectedCondition || selectedCondition.images.length <= 1) return;
+    currentImageIndex = (currentImageIndex + 1) % selectedCondition.images.length;
+    showCurrentImage();
+  }
 
   overlayClose.addEventListener("click", closePresentation);
 
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) closePresentation();
+  // ===== ZOOM FUNCTIONALITY =====
+  const ZOOM_MIN = 1;
+  const ZOOM_MAX = 4;
+  const ZOOM_STEP = 0.25;
+
+  function setZoom(level) {
+    zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, level));
+    if (zoomLevel === 1) {
+      panX = 0;
+      panY = 0;
+    }
+    applyTransform();
+    updateZoomDisplay();
+    imageFrame.classList.toggle("zoomed", zoomLevel > 1);
+  }
+
+  function resetZoom() {
+    zoomLevel = 1;
+    panX = 0;
+    panY = 0;
+    applyTransform();
+    updateZoomDisplay();
+    imageFrame.classList.remove("zoomed");
+  }
+
+  function applyTransform() {
+    imageFrame.style.transform = `scale(${zoomLevel}) translate(${panX}px, ${panY}px)`;
+  }
+
+  function updateZoomDisplay() {
+    zoomLevelDisplay.textContent = `${Math.round(zoomLevel * 100)}%`;
+  }
+
+  zoomIn.addEventListener("click", () => setZoom(zoomLevel + ZOOM_STEP));
+  zoomOut.addEventListener("click", () => setZoom(zoomLevel - ZOOM_STEP));
+  zoomReset.addEventListener("click", resetZoom);
+
+  // Mouse wheel zoom
+  imageContainer.addEventListener("wheel", (e) => {
+    if (!overlay.classList.contains("active")) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+    setZoom(zoomLevel + delta);
+  }, { passive: false });
+
+  // Pan functionality
+  imageFrame.addEventListener("mousedown", (e) => {
+    if (annotationEnabled && annotationCanvas.classList.contains("active")) return;
+    if (zoomLevel <= 1) return;
+    isPanning = true;
+    panStartX = e.clientX - panX * zoomLevel;
+    panStartY = e.clientY - panY * zoomLevel;
+    imageFrame.classList.add("dragging");
   });
 
-  document.addEventListener("keydown", (e) => {
-    if (!selectedCondition) return;
-    if (e.key === "Escape") closePresentation();
-    if (e.key === "ArrowLeft") {
-      currentImageIndex = (currentImageIndex - 1 + selectedCondition.images.length) % selectedCondition.images.length;
-      showCurrentImage();
+  document.addEventListener("mousemove", (e) => {
+    if (!isPanning) return;
+    const maxPan = (zoomLevel - 1) * 100;
+    panX = Math.max(-maxPan, Math.min(maxPan, (e.clientX - panStartX) / zoomLevel));
+    panY = Math.max(-maxPan, Math.min(maxPan, (e.clientY - panStartY) / zoomLevel));
+    applyTransform();
+  });
+
+  document.addEventListener("mouseup", () => {
+    isPanning = false;
+    imageFrame.classList.remove("dragging");
+  });
+
+  // Double-click to toggle quick zoom (radiology-style inspection)
+  presentationImage.addEventListener("dblclick", (e) => {
+    if (annotationEnabled) return; // Don't interfere with annotation
+    e.preventDefault();
+    if (zoomLevel === 1) {
+      setZoom(2); // Quick zoom in
+    } else {
+      resetZoom(); // Reset to fit
     }
-    if (e.key === "ArrowRight") {
-      currentImageIndex = (currentImageIndex + 1) % selectedCondition.images.length;
-      showCurrentImage();
+  });
+
+  // ===== ANNOTATION CONTROLS =====
+  function updateAnnotationState() {
+    annotateToggle.dataset.active = annotationEnabled;
+    annotationCanvas.classList.toggle("active", annotationEnabled);
+    annotationIndicator.classList.toggle("visible", annotationEnabled);
+  }
+
+  annotateToggle.addEventListener("click", () => {
+    annotationEnabled = !annotationEnabled;
+    updateAnnotationState();
+  });
+
+  clearAnnotationsBtn.addEventListener("click", clearAnnotations);
+
+  // ===== KEYBOARD NAVIGATION =====
+  document.addEventListener("keydown", (e) => {
+    if (!overlay.classList.contains("active")) return;
+    
+    switch (e.key) {
+      case "Escape":
+        closePresentation();
+        break;
+      case "ArrowLeft":
+        navigatePrev();
+        break;
+      case "ArrowRight":
+        navigateNext();
+        break;
+      case "+":
+      case "=":
+        e.preventDefault();
+        setZoom(zoomLevel + ZOOM_STEP);
+        break;
+      case "-":
+      case "_":
+        e.preventDefault();
+        setZoom(zoomLevel - ZOOM_STEP);
+        break;
+      case "0":
+        e.preventDefault();
+        resetZoom();
+        break;
+      case "a":
+      case "A":
+        annotationEnabled = !annotationEnabled;
+        updateAnnotationState();
+        break;
+      case "c":
+      case "C":
+        clearAnnotations();
+        break;
     }
   });
 
@@ -351,15 +550,18 @@
 
   function resizeCanvas() {
     const rect = presentationImage.getBoundingClientRect();
-    const containerRect = imageContainer.getBoundingClientRect();
+    const frameRect = imageFrame.getBoundingClientRect();
     annotationCanvas.width = rect.width;
     annotationCanvas.height = rect.height;
-    annotationCanvas.style.left = `${rect.left - containerRect.left}px`;
-    annotationCanvas.style.top = `${rect.top - containerRect.top}px`;
+    // Position relative to the image frame
+    annotationCanvas.style.left = `${rect.left - frameRect.left}px`;
+    annotationCanvas.style.top = `${rect.top - frameRect.top}px`;
   }
 
   window.addEventListener("resize", () => {
-    if (selectedCondition) resizeCanvas();
+    if (selectedCondition && overlay.classList.contains("active")) {
+      resizeCanvas();
+    }
   });
 
   function getCanvasPos(e) {
@@ -369,16 +571,23 @@
     return { x: clientX - rect.left, y: clientY - rect.top };
   }
 
+  // Annotation drawing setup
+  function setupAnnotationStroke() {
+    ctx.strokeStyle = "#ef4444";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.shadowColor = "rgba(239, 68, 68, 0.5)";
+    ctx.shadowBlur = 2;
+  }
+
   annotationCanvas.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
     isDrawing = true;
     const pos = getCanvasPos(e);
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
-    ctx.strokeStyle = "#ef4444";
-    ctx.lineWidth = 3;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+    setupAnnotationStroke();
   });
 
   annotationCanvas.addEventListener("mousemove", (e) => {
@@ -398,10 +607,7 @@
     const pos = getCanvasPos(e);
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
-    ctx.strokeStyle = "#ef4444";
-    ctx.lineWidth = 3;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+    setupAnnotationStroke();
   }, { passive: false });
 
   annotationCanvas.addEventListener("touchmove", (e) => {

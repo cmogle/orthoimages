@@ -168,26 +168,108 @@
     </div>
   </div>
 
-  <!-- Presentation Overlay -->
-  <div class="overlay" id="overlay">
-    <div class="overlay-header">
-      <div>
-        <span class="overlay-title" id="overlayTitle"></span>
-        <span class="overlay-view-label" id="overlayViewLabel"></span>
+  <!-- Presentation Overlay - Consultation Surface -->
+  <div class="presentation-surface" id="overlay">
+    <!-- Top Bar: Minimal chrome with essential info -->
+    <header class="presentation-header">
+      <div class="presentation-meta">
+        <h1 class="presentation-title" id="overlayTitle"></h1>
+        <div class="presentation-info">
+          <span class="presentation-view" id="overlayViewLabel"></span>
+          <span class="presentation-counter" id="imageCounter"></span>
+        </div>
       </div>
-      <button class="overlay-close" id="overlayClose" title="Close (Esc)">✕</button>
+      <div class="presentation-controls">
+        <div class="control-group annotation-controls" id="annotationControls">
+          <button class="control-btn" id="annotateToggle" title="Toggle Annotation (A)" data-active="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+              <path d="M2 2l7.586 7.586"/>
+              <circle cx="11" cy="11" r="2"/>
+            </svg>
+          </button>
+          <button class="control-btn" id="clearAnnotations" title="Clear Annotations (C)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18"/>
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            </svg>
+          </button>
+        </div>
+        <div class="control-divider"></div>
+        <div class="control-group zoom-controls">
+          <button class="control-btn" id="zoomOut" title="Zoom Out (-)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35"/>
+              <path d="M8 11h6"/>
+            </svg>
+          </button>
+          <span class="zoom-level" id="zoomLevel">100%</span>
+          <button class="control-btn" id="zoomIn" title="Zoom In (+)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35"/>
+              <path d="M11 8v6"/>
+              <path d="M8 11h6"/>
+            </svg>
+          </button>
+          <button class="control-btn" id="zoomReset" title="Reset Zoom (0)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              <path d="M23 6v4h-4"/>
+              <path d="M1 18v-4h4"/>
+            </svg>
+          </button>
+        </div>
+        <div class="control-divider"></div>
+        <button class="control-btn close-btn" id="overlayClose" title="Close (Esc)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18"/>
+            <path d="M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Viewing Area -->
+    <main class="presentation-viewport">
+      <!-- Navigation: Integrated, not floating -->
+      <button class="nav-region nav-prev" id="navPrev" title="Previous (←)">
+        <span class="nav-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+        </span>
+      </button>
+
+      <div class="image-stage" id="imageContainer">
+        <div class="image-frame" id="imageFrame">
+          <img id="presentationImage" src="" alt="" draggable="false">
+          <canvas class="annotation-layer" id="annotationCanvas"></canvas>
+        </div>
+      </div>
+
+      <button class="nav-region nav-next" id="navNext" title="Next (→)">
+        <span class="nav-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </span>
+      </button>
+    </main>
+
+    <!-- Filmstrip Rail -->
+    <footer class="filmstrip-rail" id="filmstripRail">
+      <div class="filmstrip-track" id="filmstripTrack"></div>
+    </footer>
+
+    <!-- Annotation Mode Indicator -->
+    <div class="annotation-indicator" id="annotationIndicator">
+      <span class="indicator-dot"></span>
+      <span>Annotation Mode</span>
     </div>
-
-    <button class="nav-arrow prev" id="navPrev" title="Previous (←)">‹</button>
-    <button class="nav-arrow next" id="navNext" title="Next (→)">›</button>
-
-    <div class="image-container" id="imageContainer">
-      <img id="presentationImage" src="" alt="">
-      <canvas class="annotation-canvas" id="annotationCanvas"></canvas>
-      <div class="annotation-hint" id="annotationHint">Draw to annotate · Double-click to clear</div>
-    </div>
-
-    <div class="dot-indicators" id="dotIndicators"></div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
