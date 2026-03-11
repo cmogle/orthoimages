@@ -1,10 +1,39 @@
-// OrthoRef - Presentation UI
+// OrthoRef - Premium Consultation UI
 (async function () {
-  const searchInput = document.getElementById("searchInput");
-  const searchContainer = document.getElementById("searchContainer");
-  const resultsGrid = document.getElementById("resultsGrid");
-  const emptyState = document.getElementById("emptyState");
+  // ===== SCREEN ELEMENTS =====
+  const welcomeScreen = document.getElementById("welcomeScreen");
+  const bodymapScreen = document.getElementById("bodymapScreen");
+  const conditionScreen = document.getElementById("conditionScreen");
+  const trayScreen = document.getElementById("trayScreen");
   const overlay = document.getElementById("overlay");
+
+  // ===== WELCOME SCREEN =====
+  const startConsultationBtn = document.getElementById("startConsultation");
+  const recentList = document.getElementById("recentList");
+  const quickLinks = document.querySelectorAll(".quick-link");
+
+  // ===== BODYMAP SCREEN =====
+  const bodyFront = document.getElementById("bodyFront");
+  const bodyBack = document.getElementById("bodyBack");
+  const backFromBodyMap = document.getElementById("backFromBodyMap");
+  const searchInputFallback = document.getElementById("searchInputFallback");
+  const resultsGridFallback = document.getElementById("resultsGridFallback");
+
+  // ===== CONDITION SCREEN =====
+  const selectedRegionTitle = document.getElementById("selectedRegionTitle");
+  const breadcrumbRegion = document.getElementById("breadcrumbRegion");
+  const conditionSearchInput = document.getElementById("conditionSearchInput");
+  const conditionChips = document.getElementById("conditionChips");
+  const backFromCondition = document.getElementById("backFromCondition");
+
+  // ===== TRAY SCREEN =====
+  const trayConditionName = document.getElementById("trayConditionName");
+  const trayConditionRegion = document.getElementById("trayConditionRegion");
+  const imageTray = document.getElementById("imageTray");
+  const emptyTrayState = document.getElementById("emptyTrayState");
+  const backFromTray = document.getElementById("backFromTray");
+
+  // ===== PRESENTATION OVERLAY =====
   const overlayTitle = document.getElementById("overlayTitle");
   const overlayViewLabel = document.getElementById("overlayViewLabel");
   const overlayClose = document.getElementById("overlayClose");
@@ -16,24 +45,64 @@
   const dotIndicators = document.getElementById("dotIndicators");
   const annotationHint = document.getElementById("annotationHint");
 
+  // ===== STATE =====
   let conditions = [];
   let fuse = null;
-  let currentCondition = null;
+  let selectedRegion = null;
+  let selectedCondition = null;
   let currentImageIndex = 0;
   let isDrawing = false;
   let ctx = null;
   let hintTimeout = null;
+  const recentConditions = JSON.parse(localStorage.getItem("recentConditions") || "[]");
 
-  // --- Load Data ---
+  // ===== NAVIGATION HELPERS =====
+  function showScreen(screen) {
+    welcomeScreen.style.display = "none";
+    bodymapScreen.style.display = "none";
+    conditionScreen.style.display = "none";
+    trayScreen.style.display = "none";
+    screen.style.display = "";
+  }
+
+  function goToWelcome() {
+    selectedRegion = null;
+    selectedCondition = null;
+    showScreen(welcomeScreen);
+  }
+
+  function goToBodyMap() {
+    showScreen(bodymapScreen);
+  }
+
+  function goToConditions(region) {
+    selectedRegion = region;
+    selectedRegionTitle.textContent = `Select ${region.charAt(0).toUpperCase() + region.slice(1)} Condition`;
+    breadcrumbRegion.textContent = region.charAt(0).toUpperCase() + region.slice(1);
+    renderConditionChips();
+    showScreen(conditionScreen);
+  }
+
+  function goToTray(condition) {
+    selectedCondition = condition;
+    trayConditionName.textContent = condition.name;
+    trayConditionRegion.textContent = condition.body_region;
+    
+    // Add to recent
+    const idx = recentConditions.findIndex(c => c.id === condition.id);
+    if (idx > -1) recentConditions.splice(idx, 1);
+    recentConditions.unshift(condition);
+    if (recentConditions.length > 5) recentConditions.pop();
+    localStorage.setItem("recentConditions", JSON.stringify(recentConditions));
+
+    renderImageTray();
+    showScreen(trayScreen);
+  }
+
+  // ===== DATA LOADING =====
   async function loadConditions() {
     const res = await fetch("/api/conditions");
     conditions = await res.json();
-
-    if (conditions.length === 0) {
-      emptyState.style.display = "";
-      return;
-    }
-    emptyState.style.display = "none";
 
     fuse = new Fuse(conditions, {
       keys: [
@@ -45,23 +114,133 @@
       includeScore: true,
     });
 
-    // Show all conditions initially
-    renderResults(conditions);
+    renderRecentList();
   }
 
-  function renderResults(items) {
-    if (items.length === 0) {
-      resultsGrid.innerHTML = '<div class="no-results">No matching conditions</div>';
+  // ===== WELCOME SCREEN RENDERING =====
+  function renderRecentList() {
+    if (recentConditions.length === 0) {
+      recentList.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem;">No recent conditions yet</p>';
       return;
     }
-    resultsGrid.innerHTML = items
-      .map((c) => {
+    recentList.innerHTML = recentConditions
+      .slice(0, 3)
+      .map(c => {
+        const thumb = c.images?.length
+          ? `<img class="recent-thumb" src="/uploads/${c.images[0].filename}" alt="${c.name}" loading="lazy">`
+          : `<div class="recent-thumb-placeholder">🦴</div>`;
+        return `
+          <button class="recent-item" data-id="${c.id}">
+            ${thumb}
+            <span>${c.name}</span>
+          </button>`;
+      })
+      .join("");
+  }
+
+  // ===== BODYMAP INTERACTION =====
+  function handleBodyRegionClick(e) {
+    const region = e.target.closest(".region");
+    if (!region) return;
+    const regionName = region.getAttribute("data-region");
+    goToConditions(regionName);
+  }
+
+  bodyFront.addEventListener("click", handleBodyRegionClick);
+  bodyBack.addEventListener("click", handleBodyRegionClick);
+
+  // ===== CONDITION CHIPS RENDERING =====
+  function renderConditionChips() {
+    const filtered = selectedRegion
+      ? conditions.filter(c => !selectedRegion || c.body_region === selectedRegion || c.body_region === "general")
+      : conditions;
+
+    // Apply search filter
+    const searchQuery = conditionSearchInput.value.trim();
+    let items = filtered;
+    if (searchQuery && fuse) {
+      const results = fuse.search(searchQuery).map(r => r.item);
+      items = results.filter(c => !selectedRegion || c.body_region === selectedRegion || c.body_region === "general");
+    }
+
+    if (items.length === 0) {
+      conditionChips.innerHTML = '<p class="no-results">No conditions found</p>';
+      return;
+    }
+
+    conditionChips.innerHTML = items
+      .map(c => {
+        const thumb = c.images?.length
+          ? `<img class="chip-thumb" src="/uploads/${c.images[0].filename}" alt="${c.name}" loading="lazy">`
+          : `<div class="chip-thumb-placeholder">🦴</div>`;
+        return `
+          <button class="condition-chip" data-id="${c.id}">
+            ${thumb}
+            <span>${c.name}</span>
+          </button>`;
+      })
+      .join("");
+
+    // Attach click handlers
+    document.querySelectorAll(".condition-chip").forEach(chip => {
+      chip.addEventListener("click", (e) => {
+        const id = Number(e.currentTarget.dataset.id);
+        const condition = conditions.find(c => c.id === id);
+        if (condition) goToTray(condition);
+      });
+    });
+  }
+
+  conditionSearchInput.addEventListener("input", () => {
+    renderConditionChips();
+  });
+
+  // ===== IMAGE TRAY RENDERING =====
+  function renderImageTray() {
+    if (!selectedCondition || !selectedCondition.images || selectedCondition.images.length === 0) {
+      imageTray.innerHTML = "";
+      emptyTrayState.style.display = "";
+      return;
+    }
+
+    emptyTrayState.style.display = "none";
+    imageTray.innerHTML = selectedCondition.images
+      .map((img, idx) => {
+        const viewLabel = img.view_label ? ` • ${img.view_label}` : "";
+        return `
+          <div class="tray-thumbnail" data-idx="${idx}">
+            <img src="/uploads/${img.filename}" alt="Image ${idx + 1}${viewLabel}" loading="lazy">
+            <span class="tray-label">${idx === 0 ? "Best" : idx + 1}${viewLabel}</span>
+          </div>`;
+      })
+      .join("");
+
+    // Attach click handlers
+    document.querySelectorAll(".tray-thumbnail").forEach(thumb => {
+      thumb.addEventListener("click", (e) => {
+        currentImageIndex = Number(e.currentTarget.dataset.idx);
+        openPresentation();
+      });
+    });
+  }
+
+  // ===== FALLBACK SEARCH =====
+  searchInputFallback.addEventListener("input", () => {
+    const query = searchInputFallback.value.trim();
+    if (!fuse) return;
+
+    if (!query) {
+      resultsGridFallback.innerHTML = "";
+      return;
+    }
+
+    const results = fuse.search(query).map(r => r.item);
+    resultsGridFallback.innerHTML = results
+      .map(c => {
         const thumb = c.images?.length
           ? `<img class="thumb" src="/uploads/${c.images[0].filename}" alt="${c.name}" loading="lazy">`
           : `<div class="thumb-placeholder">🦴</div>`;
-        const region = c.body_region
-          ? `<span class="card-region">${c.body_region}</span>`
-          : "";
+        const region = c.body_region ? `<span class="card-region">${c.body_region}</span>` : "";
         return `
           <div class="result-card" data-id="${c.id}">
             ${thumb}
@@ -72,43 +251,25 @@
           </div>`;
       })
       .join("");
-  }
 
-  // --- Search ---
-  searchInput.addEventListener("input", () => {
-    const query = searchInput.value.trim();
-    if (!fuse) return;
-
-    if (!query) {
-      searchContainer.classList.remove("has-results");
-      renderResults(conditions);
-      return;
-    }
-
-    searchContainer.classList.add("has-results");
-    const results = fuse.search(query).map((r) => r.item);
-    renderResults(results);
+    document.querySelectorAll(".result-card").forEach(card => {
+      card.addEventListener("click", (e) => {
+        const id = Number(e.currentTarget.dataset.id);
+        const condition = conditions.find(c => c.id === id);
+        if (condition && condition.images && condition.images.length > 0) {
+          goToTray(condition);
+        }
+      });
+    });
   });
 
-  // --- Click to Present ---
-  resultsGrid.addEventListener("click", (e) => {
-    const card = e.target.closest(".result-card");
-    if (!card) return;
-    const id = Number(card.dataset.id);
-    const condition = conditions.find((c) => c.id === id);
-    if (!condition || !condition.images?.length) return;
-    openPresentation(condition);
-  });
-
-  // --- Presentation Mode ---
-  function openPresentation(condition) {
-    currentCondition = condition;
-    currentImageIndex = 0;
+  // ===== PRESENTATION MODE =====
+  function openPresentation() {
+    if (!selectedCondition || !selectedCondition.images) return;
     showCurrentImage();
     overlay.classList.add("active");
     document.body.style.overflow = "hidden";
 
-    // Show hint briefly
     annotationHint.classList.remove("hidden");
     clearTimeout(hintTimeout);
     hintTimeout = setTimeout(() => annotationHint.classList.add("hidden"), 4000);
@@ -117,27 +278,22 @@
   function closePresentation() {
     overlay.classList.remove("active");
     document.body.style.overflow = "";
-    currentCondition = null;
-    clearAnnotations();
   }
 
   function showCurrentImage() {
-    if (!currentCondition) return;
-    const images = currentCondition.images;
+    if (!selectedCondition || !selectedCondition.images) return;
+    const images = selectedCondition.images;
     const img = images[currentImageIndex];
 
-    overlayTitle.textContent = currentCondition.name;
+    overlayTitle.textContent = selectedCondition.name;
     overlayViewLabel.textContent = img.view_label ? `— ${img.view_label}` : "";
     presentationImage.src = `/uploads/${img.filename}`;
 
-    // Wait for image to load to size canvas
     presentationImage.onload = () => resizeCanvas();
 
-    // Navigation visibility
     navPrev.style.display = images.length > 1 ? "" : "none";
     navNext.style.display = images.length > 1 ? "" : "none";
 
-    // Dots
     if (images.length > 1) {
       dotIndicators.innerHTML = images
         .map((_, i) => `<div class="dot${i === currentImageIndex ? " active" : ""}" data-i="${i}"></div>`)
@@ -152,15 +308,15 @@
 
   navPrev.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (!currentCondition) return;
-    currentImageIndex = (currentImageIndex - 1 + currentCondition.images.length) % currentCondition.images.length;
+    if (!selectedCondition) return;
+    currentImageIndex = (currentImageIndex - 1 + selectedCondition.images.length) % selectedCondition.images.length;
     showCurrentImage();
   });
 
   navNext.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (!currentCondition) return;
-    currentImageIndex = (currentImageIndex + 1) % currentCondition.images.length;
+    if (!selectedCondition) return;
+    currentImageIndex = (currentImageIndex + 1) % selectedCondition.images.length;
     showCurrentImage();
   });
 
@@ -173,26 +329,24 @@
 
   overlayClose.addEventListener("click", closePresentation);
 
-  // Close on click outside image
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) closePresentation();
   });
 
-  // Keyboard navigation
   document.addEventListener("keydown", (e) => {
-    if (!currentCondition) return;
+    if (!selectedCondition) return;
     if (e.key === "Escape") closePresentation();
     if (e.key === "ArrowLeft") {
-      currentImageIndex = (currentImageIndex - 1 + currentCondition.images.length) % currentCondition.images.length;
+      currentImageIndex = (currentImageIndex - 1 + selectedCondition.images.length) % selectedCondition.images.length;
       showCurrentImage();
     }
     if (e.key === "ArrowRight") {
-      currentImageIndex = (currentImageIndex + 1) % currentCondition.images.length;
+      currentImageIndex = (currentImageIndex + 1) % selectedCondition.images.length;
       showCurrentImage();
     }
   });
 
-  // --- Annotation Canvas ---
+  // ===== ANNOTATION CANVAS =====
   ctx = annotationCanvas.getContext("2d");
 
   function resizeCanvas() {
@@ -205,7 +359,7 @@
   }
 
   window.addEventListener("resize", () => {
-    if (currentCondition) resizeCanvas();
+    if (selectedCondition) resizeCanvas();
   });
 
   function getCanvasPos(e) {
@@ -260,10 +414,7 @@
 
   annotationCanvas.addEventListener("touchend", () => { isDrawing = false; });
 
-  // Double-click to clear annotations
   annotationCanvas.addEventListener("dblclick", clearAnnotations);
-
-  // Right-click to clear
   annotationCanvas.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     clearAnnotations();
@@ -274,14 +425,39 @@
     ctx.clearRect(0, 0, annotationCanvas.width, annotationCanvas.height);
   }
 
-  // --- Utility ---
+  // ===== BACK BUTTONS =====
+  startConsultationBtn.addEventListener("click", goToBodyMap);
+  backFromBodyMap.addEventListener("click", goToWelcome);
+  backFromCondition.addEventListener("click", goToBodyMap);
+  backFromTray.addEventListener("click", goToBodyMap);
+
+  // Recent items
+  recentList.addEventListener("click", (e) => {
+    const btn = e.target.closest(".recent-item");
+    if (!btn) return;
+    const id = Number(btn.dataset.id);
+    const condition = conditions.find(c => c.id === id);
+    if (condition && condition.images && condition.images.length > 0) {
+      goToTray(condition);
+    }
+  });
+
+  // Quick links
+  quickLinks.forEach(link => {
+    link.addEventListener("click", (e) => {
+      const region = e.target.dataset.region;
+      goToConditions(region);
+    });
+  });
+
+  // ===== UTILITY =====
   function esc(s) {
     const d = document.createElement("div");
     d.textContent = s;
     return d.innerHTML;
   }
 
-  // --- Init ---
+  // ===== INIT =====
   await loadConditions();
-  searchInput.focus();
+  showScreen(welcomeScreen);
 })();
