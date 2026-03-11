@@ -54,6 +54,17 @@ execute function ortho.set_updated_at();
 grant select, insert, update, delete on all tables in schema ortho to service_role;
 grant usage, select on all sequences in schema ortho to service_role;
 
+create or replace view public.ortho_conditions as
+select id, slug, name, aliases, body_region, created_at, updated_at
+from ortho.conditions;
+
+create or replace view public.ortho_images as
+select id, condition_id, storage_path, original_name, view_label, sort_order, asset_url, thumb_url, source, created_at, updated_at
+from ortho.images;
+
+grant select, insert, update, delete on public.ortho_conditions to service_role;
+grant select, insert, update, delete on public.ortho_images to service_role;
+
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'ortho-images',

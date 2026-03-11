@@ -5,7 +5,6 @@ import { v4 as uuidv4 } from "uuid";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getDb } from "./lib/db.js";
 import { buildPublicUrl, getSupabaseConfig, getSupabaseAdmin } from "./lib/supabase.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -46,7 +45,6 @@ function slugify(value) {
 
 async function buildApp() {
   const app = Fastify({ logger: false });
-  const db = getDb();
   const supabase = getSupabaseAdmin();
   const { bucket } = getSupabaseConfig();
 
@@ -63,19 +61,24 @@ async function buildApp() {
   app.get("/admin", (req, reply) => reply.sendFile("admin.html"));
 
   app.get("/api/conditions", async () => {
-    const [conditionsResult, imagesResult] = await Promise.all([
-      db.query("select * from ortho.conditions order by body_region, name"),
-      db.query("select * from ortho.images order by sort_order, id"),
-    ]);
+    const [{ data: conditions, error: conditionsError }, { data: images, error: imagesError }] =
+      await Promise.all([
+        supabase.from("ortho_conditions").select("*").order("body_region").order("name"),
+        supabase.from("ortho_images").select("*").order("sort_order").order("id"),
+      ]);
+
+    if (conditionsError || imagesError) {
+      throw fail(500, conditionsError?.message || imagesError?.message || "Failed to load conditions");
+    }
 
     const imagesByCondition = new Map();
-    for (const image of imagesResult.rows) {
+    for (const image of images || []) {
       const group = imagesByCondition.get(image.condition_id) || [];
       group.push(normalizeImage(image));
       imagesByCondition.set(image.condition_id, group);
     }
 
-    return conditionsResult.rows.map((condition) => ({
+    return (conditions || []).map((condition) => ({
       ...condition,
       images: imagesByCondition.get(condition.id) || [],
     }));
@@ -86,42 +89,58 @@ async function buildApp() {
     const safeName = requireName(name);
     const slugBase = slugify(safeName);
     const slug = `${slugBase}-${Date.now()}`;
-    const result = await db.query(
-      `insert into ortho.conditions (slug, name, aliases, body_region)
-       values ($1, $2, $3, $4)
-       returning *`,
-      [slug, safeName, aliases.trim(), body_region.trim()]
-    );
-    return result.rows[0];
+    const { data, error } = await supabase
+      .from("ortho_conditions")
+      .insert({
+        slug,
+        name: safeName,
+        aliases: aliases.trim(),
+        body_region: body_region.trim(),
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw fail(500, error.message || "Failed to create condition");
+    }
+
+    return data;
   });
 
   app.put("/api/conditions/:id", async (req) => {
     const id = Number(req.params.id);
     const { name, aliases = "", body_region = "" } = req.body;
     const safeName = requireName(name);
-    const result = await db.query(
-      `update ortho.conditions
-       set name = $1, aliases = $2, body_region = $3
-       where id = $4
-       returning *`,
-      [safeName, aliases.trim(), body_region.trim(), id]
-    );
+    const { data, error } = await supabase
+      .from("ortho_conditions")
+      .update({
+        name: safeName,
+        aliases: aliases.trim(),
+        body_region: body_region.trim(),
+      })
+      .eq("id", id)
+      .select()
+      .single();
 
-    if (!result.rowCount) {
-      throw fail(404, "Condition not found");
+    if (error || !data) {
+      throw fail(error?.code === "PGRST116" ? 404 : 500, error?.message || "Condition not found");
     }
 
-    return result.rows[0];
+    return data;
   });
 
   app.delete("/api/conditions/:id", async (req) => {
     const id = Number(req.params.id);
-    const imageResult = await db.query(
-      "select storage_path from ortho.images where condition_id = $1",
-      [id]
-    );
+    const { data: images, error: imagesError } = await supabase
+      .from("ortho_images")
+      .select("storage_path")
+      .eq("condition_id", id);
 
-    const storagePaths = imageResult.rows.map((image) => image.storage_path).filter(Boolean);
+    if (imagesError) {
+      throw fail(500, imagesError.message || "Failed to load condition images");
+    }
+
+    const storagePaths = (images || []).map((image) => image.storage_path).filter(Boolean);
     if (storagePaths.length) {
       const { error: removeError } = await supabase.storage.from(bucket).remove(storagePaths);
       if (removeError) {
@@ -129,22 +148,38 @@ async function buildApp() {
       }
     }
 
-    await db.query("delete from ortho.conditions where id = $1", [id]);
+    const { error } = await supabase.from("ortho_conditions").delete().eq("id", id);
+    if (error) {
+      throw fail(500, error.message || "Failed to delete condition");
+    }
+
     return { ok: true };
   });
 
   app.post("/api/conditions/:id/images", async (req) => {
     const conditionId = Number(req.params.id);
-    const conditionResult = await db.query("select id from ortho.conditions where id = $1", [conditionId]);
-    if (!conditionResult.rowCount) {
+    const { data: condition, error: conditionError } = await supabase
+      .from("ortho_conditions")
+      .select("id")
+      .eq("id", conditionId)
+      .single();
+
+    if (conditionError || !condition) {
       throw fail(404, "Condition not found");
     }
 
-    const maxSortResult = await db.query(
-      "select coalesce(max(sort_order), 0) as max_sort from ortho.images where condition_id = $1",
-      [conditionId]
-    );
-    let nextSort = Number(maxSortResult.rows[0]?.max_sort || 0);
+    const { data: lastImageRows, error: lastImageError } = await supabase
+      .from("ortho_images")
+      .select("sort_order")
+      .eq("condition_id", conditionId)
+      .order("sort_order", { ascending: false })
+      .limit(1);
+
+    if (lastImageError) {
+      throw fail(500, lastImageError.message || "Failed to read image order");
+    }
+
+    let nextSort = Number(lastImageRows?.[0]?.sort_order || 0);
 
     const parts = req.parts();
     const uploaded = [];
@@ -179,24 +214,27 @@ async function buildApp() {
 
       nextSort += 1;
       const assetUrl = buildPublicUrl(storagePath);
-      const insertResult = await db.query(
-        `insert into ortho.images
-          (condition_id, storage_path, original_name, view_label, sort_order, asset_url, thumb_url, source)
-         values ($1, $2, $3, $4, $5, $6, $7, $8)
-         returning *`,
-        [
-          conditionId,
-          storagePath,
-          part.filename || storagePath.split("/").pop() || "",
-          viewLabel,
-          nextSort,
-          assetUrl,
-          assetUrl,
-          "upload",
-        ]
-      );
+      const { data: imageRow, error: imageError } = await supabase
+        .from("ortho_images")
+        .insert({
+          condition_id: conditionId,
+          storage_path: storagePath,
+          original_name: part.filename || storagePath.split("/").pop() || "",
+          view_label: viewLabel,
+          sort_order: nextSort,
+          asset_url: assetUrl,
+          thumb_url: assetUrl,
+          source: "upload",
+        })
+        .select()
+        .single();
 
-      uploaded.push(normalizeImage(insertResult.rows[0]));
+      if (imageError) {
+        await supabase.storage.from(bucket).remove([storagePath]);
+        throw fail(500, imageError.message || "Failed to save image record");
+      }
+
+      uploaded.push(normalizeImage(imageRow));
     }
 
     return uploaded;
@@ -205,17 +243,20 @@ async function buildApp() {
   app.put("/api/images/:id", async (req) => {
     const id = Number(req.params.id);
     const { view_label = "", sort_order } = req.body;
-    const result = await db.query(
-      `update ortho.images
-       set view_label = $1,
-           sort_order = coalesce($2, sort_order)
-       where id = $3
-       returning id`,
-      [view_label, typeof sort_order === "undefined" ? null : Number(sort_order), id]
-    );
+    const updates = { view_label };
+    if (typeof sort_order !== "undefined") {
+      updates.sort_order = Number(sort_order);
+    }
 
-    if (!result.rowCount) {
-      throw fail(404, "Image not found");
+    const { data, error } = await supabase
+      .from("ortho_images")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw fail(error?.code === "PGRST116" ? 404 : 500, error?.message || "Image not found");
     }
 
     return { ok: true };
@@ -223,10 +264,13 @@ async function buildApp() {
 
   app.delete("/api/images/:id", async (req) => {
     const id = Number(req.params.id);
-    const imageResult = await db.query("select * from ortho.images where id = $1", [id]);
-    const image = imageResult.rows[0];
+    const { data: image, error: imageError } = await supabase
+      .from("ortho_images")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-    if (!image) {
+    if (imageError || !image) {
       throw fail(404, "Image not found");
     }
 
@@ -237,7 +281,11 @@ async function buildApp() {
       }
     }
 
-    await db.query("delete from ortho.images where id = $1", [id]);
+    const { error } = await supabase.from("ortho_images").delete().eq("id", id);
+    if (error) {
+      throw fail(500, error.message || "Failed to delete image");
+    }
+
     return { ok: true };
   });
 
