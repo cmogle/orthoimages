@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Orthopaedic image reference tool for surgeons",
-  "main": "server.js",
+  "main": "dev-server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "node dev-server.js",
+    "dev": "node --watch dev-server.js"
   },
   "dependencies": {
     "fastify": "^5.2.1",
