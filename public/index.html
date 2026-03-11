@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OrthoRef</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="search-container" id="searchContainer">
+    <div class="logo">Ortho<span>Ref</span></div>
+    <div class="search-wrapper">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input type="text" class="search-input" id="searchInput" placeholder="Search condition..." autocomplete="off" autofocus>
+    </div>
+    <div class="results-grid" id="resultsGrid"></div>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <p>No conditions loaded yet.</p>
+      <p><a href="/admin">Add images in the admin panel →</a></p>
+    </div>
+  </div>
+
+  <!-- Presentation Overlay -->
+  <div class="overlay" id="overlay">
+    <div class="overlay-header">
+      <div>
+        <span class="overlay-title" id="overlayTitle"></span>
+        <span class="overlay-view-label" id="overlayViewLabel"></span>
+      </div>
+      <button class="overlay-close" id="overlayClose" title="Close (Esc)">✕</button>
+    </div>
+
+    <button class="nav-arrow prev" id="navPrev" title="Previous (←)">‹</button>
+    <button class="nav-arrow next" id="navNext" title="Next (→)">›</button>
+
+    <div class="image-container" id="imageContainer">
+      <img id="presentationImage" src="" alt="">
+      <canvas class="annotation-canvas" id="annotationCanvas"></canvas>
+      <div class="annotation-hint" id="annotationHint">Draw to annotate · Double-click to clear</div>
+    </div>
+
+    <div class="dot-indicators" id="dotIndicators"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

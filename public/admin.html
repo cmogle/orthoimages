@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OrthoRef — Admin</title>
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1><a href="/">OrthoRef</a> · Admin</h1>
+      <button class="btn-add" id="btnAdd" title="Add condition">+</button>
+    </div>
+    <div class="sidebar-list" id="sidebarList"></div>
+  </aside>
+
+  <main class="main" id="mainContent">
+    <div class="placeholder-main" id="placeholder">
+      Select a condition or click + to create one
+    </div>
+
+    <div class="form-section" id="formSection" style="display:none">
+      <h2 id="formTitle">Edit Condition</h2>
+
+      <div class="form-group">
+        <label for="condName">Condition Name</label>
+        <input type="text" id="condName" placeholder="e.g. ACL Tear">
+      </div>
+
+      <div class="form-group">
+        <label for="condAliases">Aliases (comma-separated)</label>
+        <input type="text" id="condAliases" placeholder="e.g. anterior cruciate ligament rupture, knee ligament tear">
+      </div>
+
+      <div class="form-group">
+        <label for="condRegion">Body Region</label>
+        <select id="condRegion">
+          <option value="">— Select —</option>
+          <option value="shoulder">Shoulder</option>
+          <option value="elbow">Elbow</option>
+          <option value="wrist">Wrist</option>
+          <option value="hand">Hand</option>
+          <option value="hip">Hip</option>
+          <option value="knee">Knee</option>
+          <option value="ankle">Ankle</option>
+          <option value="foot">Foot</option>
+          <option value="spine">Spine</option>
+          <option value="neck">Neck</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btnSave">Save Condition</button>
+        <button class="btn btn-danger" id="btnDelete" style="display:none">Delete Condition</button>
+      </div>
+
+      <!-- Images Section -->
+      <div class="images-section" id="imagesSection" style="display:none">
+        <h3>Images</h3>
+
+        <div class="upload-view-label">
+          <input type="text" id="uploadViewLabel" placeholder="View label (e.g. anterior, lateral)">
+        </div>
+
+        <div class="upload-zone" id="uploadZone">
+          <p>Drop images here or click to upload</p>
+          <p style="font-size:0.75rem;color:#9ca3af;margin-top:4px">JPG, PNG, GIF, WebP — max 10MB</p>
+          <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/gif,image/webp">
+        </div>
+
+        <div class="image-grid" id="imageGrid"></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>
