@@ -1,159 +1,54 @@
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import fastifyMultipart from "@fastify/multipart";
-import initSqlJs from "sql.js/dist/sql-asm.js";
 import { v4 as uuidv4 } from "uuid";
-import { mkdir, writeFile, unlink, readFile } from "node:fs/promises";
-import { join, extname } from "node:path";
+import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+
+import { getDb } from "./lib/db.js";
+import { buildPublicUrl, getSupabaseConfig, getSupabaseAdmin } from "./lib/supabase.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
-const IS_VERCEL = Boolean(process.env.VERCEL);
-const WRITABLE_BASE = IS_VERCEL ? "/tmp/orthoref" : __dirname;
-const UPLOADS_DIR = join(WRITABLE_BASE, "uploads");
-const DATA_DIR = join(WRITABLE_BASE, "data");
-const DB_PATH = join(DATA_DIR, "orthoref.db");
-const SEED_MANIFEST_PATH = join(__dirname, "seed-data", "seed-manifest.json");
 const ALLOWED_EXTS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 
 let appPromise;
 
+function fail(statusCode, message) {
+  return { statusCode, message };
+}
+
+function normalizeImage(image) {
+  const url = image.asset_url || buildPublicUrl(image.storage_path);
+  return {
+    ...image,
+    filename: image.original_name || "",
+    original_name: image.original_name || "",
+    url,
+    thumb_url: image.thumb_url || url,
+  };
+}
+
+function requireName(name) {
+  const value = name?.trim();
+  if (!value) {
+    throw fail(400, "Name is required");
+  }
+  return value;
+}
+
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
 async function buildApp() {
-  await mkdir(UPLOADS_DIR, { recursive: true });
-  await mkdir(DATA_DIR, { recursive: true });
-
-  const SQL = await initSqlJs();
-
-  let db;
-  if (existsSync(DB_PATH)) {
-    try {
-      const fileBuffer = await readFile(DB_PATH);
-      db = new SQL.Database(fileBuffer);
-    } catch {
-      db = new SQL.Database();
-    }
-  } else {
-    db = new SQL.Database();
-  }
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS conditions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      aliases TEXT DEFAULT '',
-      body_region TEXT DEFAULT '',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS images (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      condition_id INTEGER NOT NULL REFERENCES conditions(id) ON DELETE CASCADE,
-      filename TEXT NOT NULL,
-      original_name TEXT,
-      view_label TEXT DEFAULT '',
-      sort_order INTEGER DEFAULT 0,
-      asset_url TEXT DEFAULT '',
-      thumb_url TEXT DEFAULT '',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  async function saveDatabase() {
-    const data = db.export();
-    await writeFile(DB_PATH, Buffer.from(data));
-  }
-
-  function runQuery(sql, params = []) {
-    db.run(sql, params);
-    return { lastInsertRowid: db.exec("SELECT last_insert_rowid()")[0]?.values[0]?.[0] };
-  }
-
-  function getAll(sql, params = []) {
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    const results = [];
-    while (stmt.step()) {
-      results.push(stmt.getAsObject());
-    }
-    stmt.free();
-    return results;
-  }
-
-  function getOne(sql, params = []) {
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    let result = null;
-    if (stmt.step()) {
-      result = stmt.getAsObject();
-    }
-    stmt.free();
-    return result;
-  }
-
-  function ensureColumn(table, name, definition) {
-    const columns = getAll(`PRAGMA table_info(${table})`);
-    if (columns.some((column) => column.name === name)) {
-      return;
-    }
-    db.run(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
-  }
-
-  ensureColumn("images", "asset_url", "asset_url TEXT DEFAULT ''");
-  ensureColumn("images", "thumb_url", "thumb_url TEXT DEFAULT ''");
-
-  function resolveImage(image) {
-    const url = image.asset_url || (image.filename ? `/uploads/${image.filename}` : "");
-    return {
-      ...image,
-      url,
-      thumb_url: image.thumb_url || url,
-    };
-  }
-
-  async function seedDatabaseIfEmpty() {
-    const conditionCount = getOne("SELECT COUNT(*) AS count FROM conditions");
-    if (Number(conditionCount?.count || 0) > 0) {
-      return;
-    }
-
-    if (!existsSync(SEED_MANIFEST_PATH)) {
-      return;
-    }
-
-    const raw = await readFile(SEED_MANIFEST_PATH, "utf8");
-    const seedConditions = JSON.parse(raw);
-
-    for (const condition of seedConditions) {
-      const conditionId = runQuery(
-        "INSERT INTO conditions (name, aliases, body_region) VALUES (?, ?, ?)",
-        [condition.name, "", condition.region]
-      ).lastInsertRowid;
-
-      condition.images.forEach((image, index) => {
-        runQuery(
-          "INSERT INTO images (condition_id, filename, original_name, view_label, sort_order, asset_url, thumb_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [
-            conditionId,
-            "",
-            image.title,
-            image.view_label || "",
-            index,
-            image.asset_url,
-            image.thumb_url || "",
-          ]
-        );
-      });
-    }
-
-    await saveDatabase();
-  }
-
-  await seedDatabaseIfEmpty();
-
   const app = Fastify({ logger: false });
+  const db = getDb();
+  const supabase = getSupabaseAdmin();
+  const { bucket } = getSupabaseConfig();
 
   await app.register(fastifyMultipart, {
     limits: { fileSize: 10 * 1024 * 1024 },
@@ -164,84 +59,92 @@ async function buildApp() {
     prefix: "/",
   });
 
-  await app.register(fastifyStatic, {
-    root: UPLOADS_DIR,
-    prefix: "/uploads/",
-    decorateReply: false,
-  });
-
   app.get("/", (req, reply) => reply.sendFile("index.html"));
   app.get("/admin", (req, reply) => reply.sendFile("admin.html"));
 
-  app.get("/api/conditions", () => {
-    const conditions = getAll("SELECT * FROM conditions ORDER BY body_region, name");
-    return conditions.map((condition) => ({
+  app.get("/api/conditions", async () => {
+    const [conditionsResult, imagesResult] = await Promise.all([
+      db.query("select * from ortho.conditions order by body_region, name"),
+      db.query("select * from ortho.images order by sort_order, id"),
+    ]);
+
+    const imagesByCondition = new Map();
+    for (const image of imagesResult.rows) {
+      const group = imagesByCondition.get(image.condition_id) || [];
+      group.push(normalizeImage(image));
+      imagesByCondition.set(image.condition_id, group);
+    }
+
+    return conditionsResult.rows.map((condition) => ({
       ...condition,
-      images: getAll(
-        "SELECT * FROM images WHERE condition_id = ? ORDER BY sort_order, id",
-        [condition.id]
-      ).map(resolveImage),
+      images: imagesByCondition.get(condition.id) || [],
     }));
   });
 
   app.post("/api/conditions", async (req) => {
     const { name, aliases = "", body_region = "" } = req.body;
-    if (!name?.trim()) {
-      throw { statusCode: 400, message: "Name is required" };
-    }
-
-    const result = runQuery(
-      "INSERT INTO conditions (name, aliases, body_region) VALUES (?, ?, ?)",
-      [name.trim(), aliases.trim(), body_region.trim()]
+    const safeName = requireName(name);
+    const slugBase = slugify(safeName);
+    const slug = `${slugBase}-${Date.now()}`;
+    const result = await db.query(
+      `insert into ortho.conditions (slug, name, aliases, body_region)
+       values ($1, $2, $3, $4)
+       returning *`,
+      [slug, safeName, aliases.trim(), body_region.trim()]
     );
-    await saveDatabase();
-    return { id: result.lastInsertRowid, name, aliases, body_region };
+    return result.rows[0];
   });
 
   app.put("/api/conditions/:id", async (req) => {
     const id = Number(req.params.id);
-    const existing = getOne("SELECT * FROM conditions WHERE id = ?", [id]);
-    if (!existing) {
-      throw { statusCode: 404, message: "Condition not found" };
-    }
-
     const { name, aliases = "", body_region = "" } = req.body;
-    if (!name?.trim()) {
-      throw { statusCode: 400, message: "Name is required" };
+    const safeName = requireName(name);
+    const result = await db.query(
+      `update ortho.conditions
+       set name = $1, aliases = $2, body_region = $3
+       where id = $4
+       returning *`,
+      [safeName, aliases.trim(), body_region.trim(), id]
+    );
+
+    if (!result.rowCount) {
+      throw fail(404, "Condition not found");
     }
 
-    runQuery(
-      "UPDATE conditions SET name = ?, aliases = ?, body_region = ? WHERE id = ?",
-      [name.trim(), aliases.trim(), body_region.trim(), id]
-    );
-    await saveDatabase();
-    return { id, name, aliases, body_region };
+    return result.rows[0];
   });
 
   app.delete("/api/conditions/:id", async (req) => {
     const id = Number(req.params.id);
-    const images = getAll("SELECT * FROM images WHERE condition_id = ?", [id]);
-    for (const image of images) {
-      if (!image.asset_url && image.filename) {
-        try {
-          await unlink(join(UPLOADS_DIR, image.filename));
-        } catch {
-          // Ignore missing files during cleanup.
-        }
+    const imageResult = await db.query(
+      "select storage_path from ortho.images where condition_id = $1",
+      [id]
+    );
+
+    const storagePaths = imageResult.rows.map((image) => image.storage_path).filter(Boolean);
+    if (storagePaths.length) {
+      const { error: removeError } = await supabase.storage.from(bucket).remove(storagePaths);
+      if (removeError) {
+        throw fail(500, removeError.message || "Failed to delete image assets");
       }
     }
-    runQuery("DELETE FROM images WHERE condition_id = ?", [id]);
-    runQuery("DELETE FROM conditions WHERE id = ?", [id]);
-    await saveDatabase();
+
+    await db.query("delete from ortho.conditions where id = $1", [id]);
     return { ok: true };
   });
 
   app.post("/api/conditions/:id/images", async (req) => {
     const conditionId = Number(req.params.id);
-    const existing = getOne("SELECT * FROM conditions WHERE id = ?", [conditionId]);
-    if (!existing) {
-      throw { statusCode: 404, message: "Condition not found" };
+    const conditionResult = await db.query("select id from ortho.conditions where id = $1", [conditionId]);
+    if (!conditionResult.rowCount) {
+      throw fail(404, "Condition not found");
     }
+
+    const maxSortResult = await db.query(
+      "select coalesce(max(sort_order), 0) as max_sort from ortho.images where condition_id = $1",
+      [conditionId]
+    );
+    let nextSort = Number(maxSortResult.rows[0]?.max_sort || 0);
 
     const parts = req.parts();
     const uploaded = [];
@@ -262,66 +165,79 @@ async function buildApp() {
         continue;
       }
 
-      const newFilename = `${uuidv4()}${ext}`;
+      const storagePath = `conditions/${conditionId}/${uuidv4()}${ext}`;
       const buffer = await part.toBuffer();
-      await writeFile(join(UPLOADS_DIR, newFilename), buffer);
-
-      const maxSortResult = getOne(
-        "SELECT COALESCE(MAX(sort_order), 0) as max_sort FROM images WHERE condition_id = ?",
-        [conditionId]
-      );
-      const maxSort = maxSortResult?.max_sort || 0;
-      const result = runQuery(
-        "INSERT INTO images (condition_id, filename, original_name, view_label, sort_order, asset_url, thumb_url) VALUES (?, ?, ?, ?, ?, '', '')",
-        [conditionId, newFilename, part.filename, viewLabel, maxSort + 1]
-      );
-
-      uploaded.push({
-        id: result.lastInsertRowid,
-        filename: newFilename,
-        original_name: part.filename,
-        view_label: viewLabel,
-        url: `/uploads/${newFilename}`,
-        thumb_url: `/uploads/${newFilename}`,
+      const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, buffer, {
+        cacheControl: "31536000",
+        contentType: part.mimetype || "application/octet-stream",
+        upsert: false,
       });
+
+      if (uploadError) {
+        throw fail(500, uploadError.message || "Failed to upload image");
+      }
+
+      nextSort += 1;
+      const assetUrl = buildPublicUrl(storagePath);
+      const insertResult = await db.query(
+        `insert into ortho.images
+          (condition_id, storage_path, original_name, view_label, sort_order, asset_url, thumb_url, source)
+         values ($1, $2, $3, $4, $5, $6, $7, $8)
+         returning *`,
+        [
+          conditionId,
+          storagePath,
+          part.filename || storagePath.split("/").pop() || "",
+          viewLabel,
+          nextSort,
+          assetUrl,
+          assetUrl,
+          "upload",
+        ]
+      );
+
+      uploaded.push(normalizeImage(insertResult.rows[0]));
     }
 
-    await saveDatabase();
     return uploaded;
   });
 
   app.put("/api/images/:id", async (req) => {
     const id = Number(req.params.id);
-    const existing = getOne("SELECT * FROM images WHERE id = ?", [id]);
-    if (!existing) {
-      throw { statusCode: 404, message: "Image not found" };
+    const { view_label = "", sort_order } = req.body;
+    const result = await db.query(
+      `update ortho.images
+       set view_label = $1,
+           sort_order = coalesce($2, sort_order)
+       where id = $3
+       returning id`,
+      [view_label, typeof sort_order === "undefined" ? null : Number(sort_order), id]
+    );
+
+    if (!result.rowCount) {
+      throw fail(404, "Image not found");
     }
 
-    const { view_label = existing.view_label, sort_order = existing.sort_order } = req.body;
-    runQuery(
-      "UPDATE images SET view_label = ?, sort_order = ? WHERE id = ?",
-      [view_label, Number(sort_order), id]
-    );
-    await saveDatabase();
     return { ok: true };
   });
 
   app.delete("/api/images/:id", async (req) => {
     const id = Number(req.params.id);
-    const existing = getOne("SELECT * FROM images WHERE id = ?", [id]);
-    if (!existing) {
-      throw { statusCode: 404, message: "Image not found" };
+    const imageResult = await db.query("select * from ortho.images where id = $1", [id]);
+    const image = imageResult.rows[0];
+
+    if (!image) {
+      throw fail(404, "Image not found");
     }
 
-    if (!existing.asset_url && existing.filename) {
-      try {
-        await unlink(join(UPLOADS_DIR, existing.filename));
-      } catch {
-        // Ignore missing files during cleanup.
+    if (image.storage_path) {
+      const { error: removeError } = await supabase.storage.from(bucket).remove([image.storage_path]);
+      if (removeError) {
+        throw fail(500, removeError.message || "Failed to delete image asset");
       }
     }
-    runQuery("DELETE FROM images WHERE id = ?", [id]);
-    await saveDatabase();
+
+    await db.query("delete from ortho.images where id = $1", [id]);
     return { ok: true };
   });
 
