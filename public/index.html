@@ -3,22 +3,168 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OrthoRef</title>
+  <title>OrthoRef - Orthopaedic Consultation</title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-  <div class="search-container" id="searchContainer">
-    <div class="logo">Ortho<span>Ref</span></div>
-    <div class="search-wrapper">
-      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-      </svg>
-      <input type="text" class="search-input" id="searchInput" placeholder="Search condition..." autocomplete="off" autofocus>
+  <!-- Welcome/Landing Screen -->
+  <div class="welcome-screen" id="welcomeScreen">
+    <div class="welcome-container">
+      <div class="welcome-header">
+        <h1 class="logo">Ortho<span>Ref</span></h1>
+        <p class="welcome-subtitle">Instant anatomical reference for patient consultation</p>
+      </div>
+
+      <button class="cta-button" id="startConsultation">Start Consultation</button>
+
+      <div class="welcome-grid">
+        <div class="welcome-section">
+          <h3 class="section-title">Recent Conditions</h3>
+          <div class="recent-list" id="recentList"></div>
+        </div>
+        <div class="welcome-section">
+          <h3 class="section-title">Quick Access</h3>
+          <div class="quick-links">
+            <button class="quick-link" data-region="knee">Knee</button>
+            <button class="quick-link" data-region="shoulder">Shoulder</button>
+            <button class="quick-link" data-region="wrist">Wrist</button>
+            <button class="quick-link" data-region="spine">Spine</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="welcome-footer">
+        <small>Admin: <a href="/admin">Manage images</a></small>
+      </div>
     </div>
-    <div class="results-grid" id="resultsGrid"></div>
-    <div class="empty-state" id="emptyState" style="display:none">
-      <p>No conditions loaded yet.</p>
-      <p><a href="/admin">Add images in the admin panel →</a></p>
+  </div>
+
+  <!-- Body Map Selection Screen -->
+  <div class="bodymap-screen" id="bodymapScreen" style="display:none">
+    <div class="bodymap-container">
+      <div class="bodymap-header">
+        <button class="back-button" id="backFromBodyMap" title="Back">← Back</button>
+        <h2>Select Body Region</h2>
+        <div></div>
+      </div>
+
+      <div class="bodymap-selector">
+        <div class="body-figures">
+          <div class="figure-group">
+            <button class="body-figure front" id="bodyFront" title="Front view">
+              <svg viewBox="0 0 100 200" class="body-svg">
+                <!-- Head/Neck -->
+                <circle cx="50" cy="25" r="12" class="region" data-region="head-neck"/>
+                <!-- Shoulder -->
+                <ellipse cx="35" cy="45" rx="8" ry="12" class="region" data-region="shoulder"/>
+                <ellipse cx="65" cy="45" rx="8" ry="12" class="region" data-region="shoulder"/>
+                <!-- Elbow -->
+                <ellipse cx="28" cy="70" rx="6" ry="10" class="region" data-region="elbow"/>
+                <ellipse cx="72" cy="70" rx="6" ry="10" class="region" data-region="elbow"/>
+                <!-- Wrist/Hand -->
+                <ellipse cx="22" cy="95" rx="5" ry="8" class="region" data-region="wrist"/>
+                <ellipse cx="78" cy="95" rx="5" ry="8" class="region" data-region="wrist"/>
+                <!-- Spine -->
+                <rect x="48" y="45" width="4" height="50" class="region" data-region="spine"/>
+                <!-- Hip -->
+                <ellipse cx="40" cy="120" rx="10" ry="12" class="region" data-region="hip"/>
+                <ellipse cx="60" cy="120" rx="10" ry="12" class="region" data-region="hip"/>
+                <!-- Knee -->
+                <ellipse cx="38" cy="155" rx="8" ry="10" class="region" data-region="knee"/>
+                <ellipse cx="62" cy="155" rx="8" ry="10" class="region" data-region="knee"/>
+                <!-- Ankle/Foot -->
+                <ellipse cx="38" cy="185" rx="7" ry="9" class="region" data-region="ankle"/>
+                <ellipse cx="62" cy="185" rx="7" ry="9" class="region" data-region="ankle"/>
+              </svg>
+              <span>Front</span>
+            </button>
+
+            <button class="body-figure back" id="bodyBack" title="Back view">
+              <svg viewBox="0 0 100 200" class="body-svg">
+                <!-- Head/Neck -->
+                <circle cx="50" cy="25" r="12" class="region" data-region="head-neck"/>
+                <!-- Shoulder -->
+                <ellipse cx="35" cy="45" rx="8" ry="12" class="region" data-region="shoulder"/>
+                <ellipse cx="65" cy="45" rx="8" ry="12" class="region" data-region="shoulder"/>
+                <!-- Elbow -->
+                <ellipse cx="28" cy="70" rx="6" ry="10" class="region" data-region="elbow"/>
+                <ellipse cx="72" cy="70" rx="6" ry="10" class="region" data-region="elbow"/>
+                <!-- Wrist/Hand -->
+                <ellipse cx="22" cy="95" rx="5" ry="8" class="region" data-region="wrist"/>
+                <ellipse cx="78" cy="95" rx="5" ry="8" class="region" data-region="wrist"/>
+                <!-- Spine -->
+                <rect x="48" y="45" width="4" height="50" class="region" data-region="spine"/>
+                <!-- Hip -->
+                <ellipse cx="40" cy="120" rx="10" ry="12" class="region" data-region="hip"/>
+                <ellipse cx="60" cy="120" rx="10" ry="12" class="region" data-region="hip"/>
+                <!-- Knee -->
+                <ellipse cx="38" cy="155" rx="8" ry="10" class="region" data-region="knee"/>
+                <ellipse cx="62" cy="155" rx="8" ry="10" class="region" data-region="knee"/>
+                <!-- Ankle/Foot -->
+                <ellipse cx="38" cy="185" rx="7" ry="9" class="region" data-region="ankle"/>
+                <ellipse cx="62" cy="185" rx="7" ry="9" class="region" data-region="ankle"/>
+              </svg>
+              <span>Back</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="search-fallback">
+        <p>Or search directly:</p>
+        <div class="search-wrapper">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" class="search-input" id="searchInputFallback" placeholder="Search condition..." autocomplete="off">
+        </div>
+        <div class="results-grid" id="resultsGridFallback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Condition Selection Screen -->
+  <div class="condition-screen" id="conditionScreen" style="display:none">
+    <div class="condition-container">
+      <div class="condition-header">
+        <button class="back-button" id="backFromCondition" title="Back">← Back</button>
+        <h2 id="selectedRegionTitle">Select Condition</h2>
+        <div></div>
+      </div>
+
+      <div class="breadcrumb" id="breadcrumb">
+        <span id="breadcrumbRegion"></span>
+        <span class="breadcrumb-sep">›</span>
+        <span>Condition</span>
+      </div>
+
+      <div class="condition-search">
+        <input type="text" class="search-input" id="conditionSearchInput" placeholder="Search conditions..." autocomplete="off">
+      </div>
+
+      <div class="condition-chips" id="conditionChips"></div>
+    </div>
+  </div>
+
+  <!-- Image Tray Screen -->
+  <div class="tray-screen" id="trayScreen" style="display:none">
+    <div class="tray-container">
+      <div class="tray-header">
+        <button class="back-button" id="backFromTray" title="Back">← Back</button>
+        <div>
+          <h2 id="trayConditionName">Condition</h2>
+          <p id="trayConditionRegion" class="tray-region"></p>
+        </div>
+        <div></div>
+      </div>
+
+      <div class="tray-content">
+        <div class="image-tray" id="imageTray"></div>
+      </div>
+
+      <div class="empty-state" id="emptyTrayState" style="display:none">
+        <p>No images available for this condition.</p>
+      </div>
     </div>
   </div>
 
