@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import fastifyMultipart from "@fastify/multipart";
-import initSqlJs from "sql.js";
+import initSqlJs from "sql.js/dist/sql-asm.js";
 import { v4 as uuidv4 } from "uuid";
 import { mkdir, writeFile, unlink, readFile } from "node:fs/promises";
 import { join, extname } from "node:path";
