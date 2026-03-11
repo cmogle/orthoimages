@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/uploads/(.*)", "dest": "/api/router?__pathname=/uploads/$1" },
+    { "src": "/api/(.*)", "dest": "/api/router?__pathname=/api/$1" },
+    { "src": "/admin", "dest": "/api/router?__pathname=/admin" },
+    { "src": "/", "dest": "/api/router?__pathname=/" }
+  ]
+}
