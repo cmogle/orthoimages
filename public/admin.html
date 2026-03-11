@@ -3,40 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OrthoRef Admin - Manage orthopaedic reference images and conditions">
+  <meta name="theme-color" content="#0c0c0e">
+  <meta name="robots" content="noindex, nofollow">
   <title>OrthoRef — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="/css/admin.css">
 </head>
 <body>
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <h1><a href="/">OrthoRef</a> · Admin</h1>
-      <button class="btn-add" id="btnAdd" title="Add condition">+</button>
-    </div>
-    <div class="sidebar-list" id="sidebarList"></div>
+  <aside class="sidebar" role="navigation" aria-label="Condition list">
+    <header class="sidebar-header">
+      <h1><a href="/" aria-label="Go to OrthoRef main app">OrthoRef</a> <span aria-hidden="true">·</span> Admin</h1>
+      <button class="btn-add" id="btnAdd" aria-label="Add new condition">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M8 3v10M3 8h10"/>
+        </svg>
+      </button>
+    </header>
+    <nav class="sidebar-list" id="sidebarList" aria-label="Conditions organized by body region"></nav>
   </aside>
 
-  <main class="main" id="mainContent">
-    <div class="placeholder-main" id="placeholder">
-      Select a condition or click + to create one
+  <main class="main" id="mainContent" role="main">
+    <div class="placeholder-main" id="placeholder" aria-live="polite">
+      Select a condition from the sidebar or click + to create one
     </div>
 
-    <div class="form-section" id="formSection" style="display:none">
+    <article class="form-section" id="formSection" style="display:none" aria-labelledby="formTitle">
       <h2 id="formTitle">Edit Condition</h2>
 
       <div class="form-group">
         <label for="condName">Condition Name</label>
-        <input type="text" id="condName" placeholder="e.g. ACL Tear">
+        <input type="text" id="condName" placeholder="e.g. ACL Tear" autocomplete="off" required>
       </div>
 
       <div class="form-group">
         <label for="condAliases">Aliases (comma-separated)</label>
-        <input type="text" id="condAliases" placeholder="e.g. anterior cruciate ligament rupture, knee ligament tear">
+        <input type="text" id="condAliases" placeholder="e.g. anterior cruciate ligament rupture, knee ligament tear" autocomplete="off">
       </div>
 
       <div class="form-group">
         <label for="condRegion">Body Region</label>
-        <select id="condRegion">
-          <option value="">— Select —</option>
+        <select id="condRegion" required>
+          <option value="">— Select region —</option>
           <option value="shoulder">Shoulder</option>
           <option value="elbow">Elbow</option>
           <option value="wrist">Wrist</option>
@@ -52,30 +61,30 @@
       </div>
 
       <div class="form-actions">
-        <button class="btn btn-primary" id="btnSave">Save Condition</button>
-        <button class="btn btn-danger" id="btnDelete" style="display:none">Delete Condition</button>
+        <button class="btn btn-primary" id="btnSave" type="button">Save Condition</button>
+        <button class="btn btn-danger" id="btnDelete" type="button" style="display:none">Delete Condition</button>
       </div>
 
       <!-- Images Section -->
-      <div class="images-section" id="imagesSection" style="display:none">
-        <h3>Images</h3>
+      <section class="images-section" id="imagesSection" style="display:none" aria-labelledby="images-title">
+        <h3 id="images-title">Reference Images</h3>
 
         <div class="upload-view-label">
-          <input type="text" id="uploadViewLabel" placeholder="View label (e.g. anterior, lateral)">
+          <input type="text" id="uploadViewLabel" placeholder="View label (e.g. anterior, lateral, MRI)" autocomplete="off" aria-label="Enter a view label for uploaded images">
         </div>
 
-        <div class="upload-zone" id="uploadZone">
+        <div class="upload-zone" id="uploadZone" role="button" tabindex="0" aria-label="Drop images here or click to upload">
           <p>Drop images here or click to upload</p>
-          <p style="font-size:0.75rem;color:#9ca3af;margin-top:4px">JPG, PNG, GIF, WebP — max 10MB</p>
-          <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/gif,image/webp">
+          <p>JPG, PNG, GIF, WebP — max 10MB</p>
+          <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/gif,image/webp" aria-hidden="true">
         </div>
 
-        <div class="image-grid" id="imageGrid"></div>
-      </div>
-    </div>
+        <div class="image-grid" id="imageGrid" role="list" aria-label="Uploaded images"></div>
+      </section>
+    </article>
   </main>
 
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/admin.js"></script>
 </body>

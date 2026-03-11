@@ -148,6 +148,17 @@
 
   bodyFront.addEventListener("click", handleBodyRegionClick);
   bodyBack.addEventListener("click", handleBodyRegionClick);
+  
+  // Keyboard support for body regions
+  document.querySelectorAll('.body-svg .region').forEach(region => {
+    region.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const regionName = region.getAttribute('data-region');
+        goToConditions(regionName);
+      }
+    });
+  });
 
   // ===== CONDITION CHIPS RENDERING =====
   function renderConditionChips() {
