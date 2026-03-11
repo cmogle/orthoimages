@@ -9,8 +9,10 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const PORT = process.env.PORT || 3000;
-const UPLOADS_DIR = join(__dirname, "uploads");
-const DATA_DIR = join(__dirname, "data");
+const IS_VERCEL = Boolean(process.env.VERCEL);
+const WRITABLE_BASE = IS_VERCEL ? "/tmp/orthoref" : __dirname;
+const UPLOADS_DIR = join(WRITABLE_BASE, "uploads");
+const DATA_DIR = join(WRITABLE_BASE, "data");
 const DB_PATH = join(DATA_DIR, "orthoref.db");
 
 // Ensure directories exist
