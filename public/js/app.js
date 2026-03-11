@@ -1,39 +1,23 @@
-// OrthoRef - Premium Consultation UI
+// OrthoRef - Section-led image bank UI
 (async function () {
-  // ===== SCREEN ELEMENTS =====
-  const welcomeScreen = document.getElementById("welcomeScreen");
-  const bodymapScreen = document.getElementById("bodymapScreen");
-  const conditionScreen = document.getElementById("conditionScreen");
-  const trayScreen = document.getElementById("trayScreen");
+  const homeScreen = document.getElementById("homeScreen");
+  const browserScreen = document.getElementById("browserScreen");
+  const sectionGrid = document.getElementById("sectionGrid");
+  const sectionTabs = document.getElementById("sectionTabs");
+  const browserEyebrow = document.getElementById("browserEyebrow");
+  const browserTitle = document.getElementById("browserTitle");
+  const browserSummary = document.getElementById("browserSummary");
+  const browserSearchInput = document.getElementById("browserSearchInput");
+  const conditionPanelTitle = document.getElementById("conditionPanelTitle");
+  const conditionPanelMeta = document.getElementById("conditionPanelMeta");
+  const conditionList = document.getElementById("conditionList");
+  const imagePanelTitle = document.getElementById("imagePanelTitle");
+  const imagePanelMeta = document.getElementById("imagePanelMeta");
+  const imageGrid = document.getElementById("imageGrid");
+  const emptyGridState = document.getElementById("emptyGridState");
+  const backToHome = document.getElementById("backToHome");
+
   const overlay = document.getElementById("overlay");
-
-  // ===== WELCOME SCREEN =====
-  const startConsultationBtn = document.getElementById("startConsultation");
-  const recentList = document.getElementById("recentList");
-  const quickLinks = document.querySelectorAll(".quick-link");
-
-  // ===== BODYMAP SCREEN =====
-  const bodyFront = document.getElementById("bodyFront");
-  const bodyBack = document.getElementById("bodyBack");
-  const backFromBodyMap = document.getElementById("backFromBodyMap");
-  const searchInputFallback = document.getElementById("searchInputFallback");
-  const resultsGridFallback = document.getElementById("resultsGridFallback");
-
-  // ===== CONDITION SCREEN =====
-  const selectedRegionTitle = document.getElementById("selectedRegionTitle");
-  const breadcrumbRegion = document.getElementById("breadcrumbRegion");
-  const conditionSearchInput = document.getElementById("conditionSearchInput");
-  const conditionChips = document.getElementById("conditionChips");
-  const backFromCondition = document.getElementById("backFromCondition");
-
-  // ===== TRAY SCREEN =====
-  const trayConditionName = document.getElementById("trayConditionName");
-  const trayConditionRegion = document.getElementById("trayConditionRegion");
-  const imageTray = document.getElementById("imageTray");
-  const emptyTrayState = document.getElementById("emptyTrayState");
-  const backFromTray = document.getElementById("backFromTray");
-
-  // ===== PRESENTATION OVERLAY =====
   const overlayTitle = document.getElementById("overlayTitle");
   const overlayViewLabel = document.getElementById("overlayViewLabel");
   const overlayClose = document.getElementById("overlayClose");
@@ -42,19 +26,64 @@
   const presentationImage = document.getElementById("presentationImage");
   const annotationCanvas = document.getElementById("annotationCanvas");
   const imageContainer = document.getElementById("imageContainer");
-  const dotIndicators = document.getElementById("dotIndicators");
+  const filmstrip = document.getElementById("dotIndicators");
   const annotationHint = document.getElementById("annotationHint");
 
-  // ===== STATE =====
+  const SECTION_CONFIG = [
+    {
+      key: "head",
+      label: "Head",
+      regions: ["head", "head-neck", "neck"],
+      accent: "section-card--head",
+      summary: "Cervical and cranial reference images",
+    },
+    {
+      key: "shoulders",
+      label: "Shoulders",
+      regions: ["shoulder", "elbow", "wrist", "hand"],
+      accent: "section-card--shoulders",
+      summary: "Shoulder and upper-limb reference images",
+    },
+    {
+      key: "spine",
+      label: "Spine",
+      regions: ["spine"],
+      accent: "section-card--spine",
+      summary: "Lumbar, stenosis, scoliosis, and vertebral references",
+    },
+    {
+      key: "hips",
+      label: "Hips",
+      regions: ["hip"],
+      accent: "section-card--hips",
+      summary: "Hip trauma, osteoarthritis, and hamstring-related images",
+    },
+    {
+      key: "knees",
+      label: "Knees",
+      regions: ["knee"],
+      accent: "section-card--knees",
+      summary: "ACL, meniscus, arthritis, and nerve-related imagery",
+    },
+    {
+      key: "ankle",
+      label: "Ankle",
+      regions: ["ankle", "foot"],
+      accent: "section-card--ankle",
+      summary: "Ankle, Achilles, plantar, and forefoot references",
+    },
+  ];
+
   let conditions = [];
-  let fuse = null;
-  let selectedRegion = null;
-  let selectedCondition = null;
+  let availableSections = [];
+  let activeSectionKey = null;
+  let selectedConditionId = null;
+  let searchQuery = "";
+  let currentGalleryItems = [];
   let currentImageIndex = 0;
   let isDrawing = false;
   let ctx = null;
   let hintTimeout = null;
-  const recentConditions = JSON.parse(localStorage.getItem("recentConditions") || "[]");
 
   function getImageUrl(image) {
     return image?.url || image?.asset_url || (image?.filename ? `/uploads/${image.filename}` : "");
@@ -64,216 +93,291 @@
     return image?.thumb_url || getImageUrl(image);
   }
 
-  // ===== NAVIGATION HELPERS =====
+  function normalizeRegion(value) {
+    return (value || "").trim().toLowerCase();
+  }
+
+  function enrichCondition(condition) {
+    const section = SECTION_CONFIG.find((entry) =>
+      entry.regions.includes(normalizeRegion(condition.body_region))
+    );
+
+    const images = (condition.images || []).map((image, index) => ({
+      ...image,
+      _conditionId: condition.id,
+      _conditionName: condition.name,
+      _conditionAliases: condition.aliases || "",
+      _region: normalizeRegion(condition.body_region),
+      _sectionKey: section?.key || null,
+      _sectionLabel: section?.label || "Other",
+      _sortOrder: typeof image.sort_order === "number" ? image.sort_order : index,
+    }));
+
+    return {
+      ...condition,
+      _sectionKey: section?.key || null,
+      _sectionLabel: section?.label || "Other",
+      _region: normalizeRegion(condition.body_region),
+      images,
+    };
+  }
+
+  function getSectionData() {
+    return SECTION_CONFIG.map((section) => {
+      const sectionConditions = conditions.filter((condition) => condition._sectionKey === section.key);
+      const sectionImages = sectionConditions.flatMap((condition) => condition.images);
+
+      return {
+        ...section,
+        conditions: sectionConditions,
+        images: sectionImages,
+        heroImage: sectionImages[0] || null,
+      };
+    }).filter((section) => section.images.length > 0);
+  }
+
   function showScreen(screen) {
-    welcomeScreen.style.display = "none";
-    bodymapScreen.style.display = "none";
-    conditionScreen.style.display = "none";
-    trayScreen.style.display = "none";
+    homeScreen.style.display = "none";
+    browserScreen.style.display = "none";
     screen.style.display = "";
   }
 
-  function goToWelcome() {
-    selectedRegion = null;
-    selectedCondition = null;
-    showScreen(welcomeScreen);
+  function showHome() {
+    showScreen(homeScreen);
   }
 
-  function goToBodyMap() {
-    showScreen(bodymapScreen);
+  function showBrowser(sectionKey) {
+    activeSectionKey = sectionKey;
+    searchQuery = "";
+    selectedConditionId = null;
+    browserSearchInput.value = "";
+    renderBrowser();
+    showScreen(browserScreen);
   }
 
-  function goToConditions(region) {
-    selectedRegion = region;
-    selectedRegionTitle.textContent = `Select ${region.charAt(0).toUpperCase() + region.slice(1)} Condition`;
-    breadcrumbRegion.textContent = region.charAt(0).toUpperCase() + region.slice(1);
-    renderConditionChips();
-    showScreen(conditionScreen);
+  function getActiveSection() {
+    return availableSections.find((section) => section.key === activeSectionKey) || availableSections[0] || null;
   }
 
-  function goToTray(condition) {
-    selectedCondition = condition;
-    trayConditionName.textContent = condition.name;
-    trayConditionRegion.textContent = condition.body_region;
-    
-    // Add to recent
-    const idx = recentConditions.findIndex(c => c.id === condition.id);
-    if (idx > -1) recentConditions.splice(idx, 1);
-    recentConditions.unshift(condition);
-    if (recentConditions.length > 5) recentConditions.pop();
-    localStorage.setItem("recentConditions", JSON.stringify(recentConditions));
+  function matchesSearch(condition, image) {
+    if (!searchQuery) {
+      return true;
+    }
 
-    renderImageTray();
-    showScreen(trayScreen);
+    const haystack = [
+      condition.name,
+      condition.aliases,
+      condition.body_region,
+      image.view_label,
+      image.original_name,
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(searchQuery);
   }
 
-  // ===== DATA LOADING =====
-  async function loadConditions() {
-    const res = await fetch("/api/conditions");
-    conditions = await res.json();
+  function getVisibleConditions(section) {
+    if (!section) {
+      return [];
+    }
 
-    fuse = new Fuse(conditions, {
-      keys: [
-        { name: "name", weight: 2 },
-        { name: "aliases", weight: 1.5 },
-        { name: "body_region", weight: 0.5 },
-      ],
-      threshold: 0.35,
-      includeScore: true,
+    return section.conditions.filter((condition) =>
+      condition.images.some((image) => matchesSearch(condition, image))
+    );
+  }
+
+  function getVisibleImages(section) {
+    if (!section) {
+      return [];
+    }
+
+    const baseConditions = section.conditions.filter((condition) =>
+      !selectedConditionId || condition.id === selectedConditionId
+    );
+
+    return baseConditions
+      .flatMap((condition) =>
+        condition.images
+          .filter((image) => matchesSearch(condition, image))
+          .map((image) => ({
+            condition,
+            image,
+          }))
+      )
+      .sort((left, right) => {
+        if (left.condition.name !== right.condition.name) {
+          return left.condition.name.localeCompare(right.condition.name);
+        }
+        return Number(left.image._sortOrder) - Number(right.image._sortOrder);
+      });
+  }
+
+  function renderHome() {
+    sectionGrid.innerHTML = availableSections
+      .map((section) => {
+        const style = section.heroImage
+          ? `style="background-image:linear-gradient(180deg, rgba(8,15,20,0.12), rgba(8,15,20,0.88)),url('${getThumbUrl(section.heroImage)}')"`
+          : "";
+        const conditionCount = section.conditions.length;
+        const imageCount = section.images.length;
+
+        return `
+          <button class="section-card ${section.accent}" type="button" data-section="${section.key}" ${style}>
+            <div class="section-card__meta">
+              <p class="section-card__label">${esc(section.label)}</p>
+              <p class="section-card__summary">${esc(section.summary)}</p>
+            </div>
+            <div class="section-card__footer">
+              <span>${conditionCount} condition${conditionCount === 1 ? "" : "s"}</span>
+              <span>${imageCount} image${imageCount === 1 ? "" : "s"}</span>
+            </div>
+          </button>
+        `;
+      })
+      .join("");
+
+    sectionGrid.querySelectorAll("[data-section]").forEach((button) => {
+      button.addEventListener("click", () => showBrowser(button.dataset.section));
     });
-
-    renderRecentList();
   }
 
-  // ===== WELCOME SCREEN RENDERING =====
-  function renderRecentList() {
-    if (recentConditions.length === 0) {
-      recentList.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem;">No recent conditions yet</p>';
-      return;
-    }
-    recentList.innerHTML = recentConditions
-      .slice(0, 3)
-      .map(c => {
-        const thumb = c.images?.length
-          ? `<img class="recent-thumb" src="${getThumbUrl(c.images[0])}" alt="${c.name}" loading="lazy">`
-          : `<div class="recent-thumb-placeholder">🦴</div>`;
-        return `
-          <button class="recent-item" data-id="${c.id}">
-            ${thumb}
-            <span>${c.name}</span>
-          </button>`;
-      })
-      .join("");
-  }
-
-  // ===== BODYMAP INTERACTION =====
-  function handleBodyRegionClick(e) {
-    const region = e.target.closest(".region");
-    if (!region) return;
-    const regionName = region.getAttribute("data-region");
-    goToConditions(regionName);
-  }
-
-  bodyFront.addEventListener("click", handleBodyRegionClick);
-  bodyBack.addEventListener("click", handleBodyRegionClick);
-
-  // ===== CONDITION CHIPS RENDERING =====
-  function renderConditionChips() {
-    const filtered = selectedRegion
-      ? conditions.filter(c => !selectedRegion || c.body_region === selectedRegion || c.body_region === "general")
-      : conditions;
-
-    // Apply search filter
-    const searchQuery = conditionSearchInput.value.trim();
-    let items = filtered;
-    if (searchQuery && fuse) {
-      const results = fuse.search(searchQuery).map(r => r.item);
-      items = results.filter(c => !selectedRegion || c.body_region === selectedRegion || c.body_region === "general");
-    }
-
-    if (items.length === 0) {
-      conditionChips.innerHTML = '<p class="no-results">No conditions found</p>';
-      return;
-    }
-
-    conditionChips.innerHTML = items
-      .map(c => {
-        const thumb = c.images?.length
-          ? `<img class="chip-thumb" src="${getThumbUrl(c.images[0])}" alt="${c.name}" loading="lazy">`
-          : `<div class="chip-thumb-placeholder">🦴</div>`;
-        return `
-          <button class="condition-chip" data-id="${c.id}">
-            ${thumb}
-            <span>${c.name}</span>
-          </button>`;
-      })
+  function renderSectionTabs(section) {
+    sectionTabs.innerHTML = availableSections
+      .map(
+        (entry) => `
+          <button
+            class="section-tab${entry.key === section?.key ? " is-active" : ""}"
+            type="button"
+            data-section-tab="${entry.key}"
+          >
+            ${esc(entry.label)}
+          </button>
+        `
+      )
       .join("");
 
-    // Attach click handlers
-    document.querySelectorAll(".condition-chip").forEach(chip => {
-      chip.addEventListener("click", (e) => {
-        const id = Number(e.currentTarget.dataset.id);
-        const condition = conditions.find(c => c.id === id);
-        if (condition) goToTray(condition);
+    sectionTabs.querySelectorAll("[data-section-tab]").forEach((button) => {
+      button.addEventListener("click", () => {
+        activeSectionKey = button.dataset.sectionTab;
+        selectedConditionId = null;
+        searchQuery = "";
+        browserSearchInput.value = "";
+        renderBrowser();
       });
     });
   }
 
-  conditionSearchInput.addEventListener("input", () => {
-    renderConditionChips();
-  });
+  function renderConditionList(section, visibleConditions) {
+    const totalImages = section.images.length;
+    conditionPanelTitle.textContent = `All ${section.label}`;
+    conditionPanelMeta.textContent = `${visibleConditions.length} conditions`;
 
-  // ===== IMAGE TRAY RENDERING =====
-  function renderImageTray() {
-    if (!selectedCondition || !selectedCondition.images || selectedCondition.images.length === 0) {
-      imageTray.innerHTML = "";
-      emptyTrayState.style.display = "";
+    const searchFilteredIds = new Set(visibleConditions.map((condition) => condition.id));
+
+    conditionList.innerHTML = `
+      <button class="condition-option${selectedConditionId === null ? " is-active" : ""}" type="button" data-condition-id="">
+        <span class="condition-option__thumb condition-option__thumb--placeholder"></span>
+        <span class="condition-option__name">All ${esc(section.label)}</span>
+        <span class="condition-option__count">${totalImages}</span>
+      </button>
+      ${visibleConditions
+        .map((condition) => {
+          const preview = condition.images[0]
+            ? `<img class="condition-option__thumb" src="${getThumbUrl(condition.images[0])}" alt="${esc(condition.name)}" loading="lazy">`
+            : `<span class="condition-option__thumb condition-option__thumb--placeholder"></span>`;
+
+          return `
+            <button
+              class="condition-option${selectedConditionId === condition.id ? " is-active" : ""}"
+              type="button"
+              data-condition-id="${condition.id}"
+            >
+              ${preview}
+              <span class="condition-option__name">${esc(condition.name)}</span>
+              <span class="condition-option__count">${condition.images.length}</span>
+            </button>
+          `;
+        })
+        .join("")}
+    `;
+
+    if (selectedConditionId && !searchFilteredIds.has(selectedConditionId)) {
+      selectedConditionId = null;
+    }
+
+    conditionList.querySelectorAll("[data-condition-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.dataset.conditionId;
+        selectedConditionId = id ? Number(id) : null;
+        renderBrowser();
+      });
+    });
+  }
+
+  function renderImageGrid(section, visibleImages) {
+    const activeCondition = selectedConditionId
+      ? section.conditions.find((condition) => condition.id === selectedConditionId)
+      : null;
+
+    imagePanelTitle.textContent = activeCondition ? activeCondition.name : `${section.label} image bank`;
+    imagePanelMeta.textContent = `${visibleImages.length} image${visibleImages.length === 1 ? "" : "s"}`;
+
+    if (!visibleImages.length) {
+      imageGrid.innerHTML = "";
+      emptyGridState.style.display = "";
       return;
     }
 
-    emptyTrayState.style.display = "none";
-    imageTray.innerHTML = selectedCondition.images
-      .map((img, idx) => {
-        const viewLabel = img.view_label ? ` • ${img.view_label}` : "";
-        return `
-          <div class="tray-thumbnail" data-idx="${idx}">
-            <img src="${getThumbUrl(img)}" alt="Image ${idx + 1}${viewLabel}" loading="lazy">
-            <span class="tray-label">${idx === 0 ? "Best" : idx + 1}${viewLabel}</span>
-          </div>`;
-      })
+    emptyGridState.style.display = "none";
+    imageGrid.innerHTML = visibleImages
+      .map(
+        ({ condition, image }, index) => `
+          <button class="image-card" type="button" data-image-index="${index}">
+            <img class="image-card__thumb" src="${getThumbUrl(image)}" alt="${esc(condition.name)}" loading="lazy">
+            <span class="image-card__section">${esc(section.label)}</span>
+            <div class="image-card__body">
+              <h4>${esc(condition.name)}</h4>
+              <p>${esc(image.view_label || image.original_name || "Reference view")}</p>
+            </div>
+          </button>
+        `
+      )
       .join("");
 
-    // Attach click handlers
-    document.querySelectorAll(".tray-thumbnail").forEach(thumb => {
-      thumb.addEventListener("click", (e) => {
-        currentImageIndex = Number(e.currentTarget.dataset.idx);
+    imageGrid.querySelectorAll("[data-image-index]").forEach((button) => {
+      button.addEventListener("click", () => {
+        currentGalleryItems = visibleImages;
+        currentImageIndex = Number(button.dataset.imageIndex);
         openPresentation();
       });
     });
   }
 
-  // ===== FALLBACK SEARCH =====
-  searchInputFallback.addEventListener("input", () => {
-    const query = searchInputFallback.value.trim();
-    if (!fuse) return;
-
-    if (!query) {
-      resultsGridFallback.innerHTML = "";
+  function renderBrowser() {
+    const section = getActiveSection();
+    if (!section) {
       return;
     }
 
-    const results = fuse.search(query).map(r => r.item);
-    resultsGridFallback.innerHTML = results
-      .map(c => {
-        const thumb = c.images?.length
-          ? `<img class="thumb" src="${getThumbUrl(c.images[0])}" alt="${c.name}" loading="lazy">`
-          : `<div class="thumb-placeholder">🦴</div>`;
-        const region = c.body_region ? `<span class="card-region">${c.body_region}</span>` : "";
-        return `
-          <div class="result-card" data-id="${c.id}">
-            ${thumb}
-            <div class="card-body">
-              <div class="card-title">${esc(c.name)}</div>
-              ${region}
-            </div>
-          </div>`;
-      })
-      .join("");
+    browserEyebrow.textContent = `${section.label} section`;
+    browserTitle.textContent = section.label;
+    browserSummary.textContent = section.summary;
 
-    document.querySelectorAll(".result-card").forEach(card => {
-      card.addEventListener("click", (e) => {
-        const id = Number(e.currentTarget.dataset.id);
-        const condition = conditions.find(c => c.id === id);
-        if (condition && condition.images && condition.images.length > 0) {
-          goToTray(condition);
-        }
-      });
-    });
-  });
+    renderSectionTabs(section);
 
-  // ===== PRESENTATION MODE =====
+    const visibleConditions = getVisibleConditions(section);
+    renderConditionList(section, visibleConditions);
+
+    const visibleImages = getVisibleImages(section);
+    renderImageGrid(section, visibleImages);
+  }
+
   function openPresentation() {
-    if (!selectedCondition || !selectedCondition.images) return;
+    if (!currentGalleryItems.length) {
+      return;
+    }
+
     showCurrentImage();
     overlay.classList.add("active");
     document.body.style.overflow = "hidden";
@@ -289,72 +393,92 @@
   }
 
   function showCurrentImage() {
-    if (!selectedCondition || !selectedCondition.images) return;
-    const images = selectedCondition.images;
-    const img = images[currentImageIndex];
+    const current = currentGalleryItems[currentImageIndex];
+    if (!current) {
+      return;
+    }
 
-    overlayTitle.textContent = selectedCondition.name;
-    overlayViewLabel.textContent = img.view_label ? `— ${img.view_label}` : "";
-    presentationImage.src = getImageUrl(img);
-
+    overlayTitle.textContent = current.condition.name;
+    overlayViewLabel.textContent = current.image.view_label ? `— ${current.image.view_label}` : "";
+    presentationImage.src = getImageUrl(current.image);
+    presentationImage.alt = current.condition.name;
     presentationImage.onload = () => resizeCanvas();
 
-    navPrev.style.display = images.length > 1 ? "" : "none";
-    navNext.style.display = images.length > 1 ? "" : "none";
+    navPrev.style.display = currentGalleryItems.length > 1 ? "" : "none";
+    navNext.style.display = currentGalleryItems.length > 1 ? "" : "none";
 
-    if (images.length > 1) {
-      dotIndicators.innerHTML = images
-        .map((_, i) => `<div class="dot${i === currentImageIndex ? " active" : ""}" data-i="${i}"></div>`)
-        .join("");
-      dotIndicators.style.display = "";
-    } else {
-      dotIndicators.style.display = "none";
-    }
+    filmstrip.innerHTML = currentGalleryItems
+      .map(
+        (entry, index) => `
+          <button class="filmstrip__item${index === currentImageIndex ? " is-active" : ""}" type="button" data-filmstrip-index="${index}">
+            <img src="${getThumbUrl(entry.image)}" alt="${esc(entry.condition.name)}" loading="lazy">
+            <span>${esc(entry.image.view_label || entry.condition.name)}</span>
+          </button>
+        `
+      )
+      .join("");
+
+    filmstrip.querySelectorAll("[data-filmstrip-index]").forEach((button) => {
+      button.addEventListener("click", () => {
+        currentImageIndex = Number(button.dataset.filmstripIndex);
+        showCurrentImage();
+      });
+    });
 
     clearAnnotations();
   }
 
-  navPrev.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (!selectedCondition) return;
-    currentImageIndex = (currentImageIndex - 1 + selectedCondition.images.length) % selectedCondition.images.length;
+  function moveOverlay(direction) {
+    if (currentGalleryItems.length < 2) {
+      return;
+    }
+
+    currentImageIndex =
+      (currentImageIndex + direction + currentGalleryItems.length) % currentGalleryItems.length;
     showCurrentImage();
+  }
+
+  backToHome.addEventListener("click", showHome);
+
+  browserSearchInput.addEventListener("input", () => {
+    searchQuery = browserSearchInput.value.trim().toLowerCase();
+    renderBrowser();
   });
 
-  navNext.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (!selectedCondition) return;
-    currentImageIndex = (currentImageIndex + 1) % selectedCondition.images.length;
-    showCurrentImage();
+  navPrev.addEventListener("click", (event) => {
+    event.stopPropagation();
+    moveOverlay(-1);
   });
 
-  dotIndicators.addEventListener("click", (e) => {
-    const dot = e.target.closest(".dot");
-    if (!dot) return;
-    currentImageIndex = Number(dot.dataset.i);
-    showCurrentImage();
+  navNext.addEventListener("click", (event) => {
+    event.stopPropagation();
+    moveOverlay(1);
   });
 
   overlayClose.addEventListener("click", closePresentation);
 
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) closePresentation();
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (!selectedCondition) return;
-    if (e.key === "Escape") closePresentation();
-    if (e.key === "ArrowLeft") {
-      currentImageIndex = (currentImageIndex - 1 + selectedCondition.images.length) % selectedCondition.images.length;
-      showCurrentImage();
-    }
-    if (e.key === "ArrowRight") {
-      currentImageIndex = (currentImageIndex + 1) % selectedCondition.images.length;
-      showCurrentImage();
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      closePresentation();
     }
   });
 
-  // ===== ANNOTATION CANVAS =====
+  document.addEventListener("keydown", (event) => {
+    if (!overlay.classList.contains("active")) {
+      return;
+    }
+
+    if (event.key === "Escape") {
+      closePresentation();
+    }
+    if (event.key === "ArrowLeft") {
+      moveOverlay(-1);
+    }
+    if (event.key === "ArrowRight") {
+      moveOverlay(1);
+    }
+  });
+
   ctx = annotationCanvas.getContext("2d");
 
   function resizeCanvas() {
@@ -367,20 +491,24 @@
   }
 
   window.addEventListener("resize", () => {
-    if (selectedCondition) resizeCanvas();
+    if (overlay.classList.contains("active")) {
+      resizeCanvas();
+    }
   });
 
-  function getCanvasPos(e) {
+  function getCanvasPos(event) {
     const rect = annotationCanvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
     return { x: clientX - rect.left, y: clientY - rect.top };
   }
 
-  annotationCanvas.addEventListener("mousedown", (e) => {
-    if (e.button !== 0) return;
+  annotationCanvas.addEventListener("mousedown", (event) => {
+    if (event.button !== 0) {
+      return;
+    }
     isDrawing = true;
-    const pos = getCanvasPos(e);
+    const pos = getCanvasPos(event);
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
     ctx.strokeStyle = "#ef4444";
@@ -389,83 +517,85 @@
     ctx.lineJoin = "round";
   });
 
-  annotationCanvas.addEventListener("mousemove", (e) => {
-    if (!isDrawing) return;
-    const pos = getCanvasPos(e);
+  annotationCanvas.addEventListener("mousemove", (event) => {
+    if (!isDrawing) {
+      return;
+    }
+    const pos = getCanvasPos(event);
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
   });
 
-  annotationCanvas.addEventListener("mouseup", () => { isDrawing = false; });
-  annotationCanvas.addEventListener("mouseleave", () => { isDrawing = false; });
+  annotationCanvas.addEventListener("mouseup", () => {
+    isDrawing = false;
+  });
 
-  // Touch support
-  annotationCanvas.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    isDrawing = true;
-    const pos = getCanvasPos(e);
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-    ctx.strokeStyle = "#ef4444";
-    ctx.lineWidth = 3;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-  }, { passive: false });
+  annotationCanvas.addEventListener("mouseleave", () => {
+    isDrawing = false;
+  });
 
-  annotationCanvas.addEventListener("touchmove", (e) => {
-    e.preventDefault();
-    if (!isDrawing) return;
-    const pos = getCanvasPos(e);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-  }, { passive: false });
+  annotationCanvas.addEventListener(
+    "touchstart",
+    (event) => {
+      event.preventDefault();
+      isDrawing = true;
+      const pos = getCanvasPos(event);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+      ctx.strokeStyle = "#ef4444";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+    },
+    { passive: false }
+  );
 
-  annotationCanvas.addEventListener("touchend", () => { isDrawing = false; });
+  annotationCanvas.addEventListener(
+    "touchmove",
+    (event) => {
+      event.preventDefault();
+      if (!isDrawing) {
+        return;
+      }
+      const pos = getCanvasPos(event);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    },
+    { passive: false }
+  );
+
+  annotationCanvas.addEventListener("touchend", () => {
+    isDrawing = false;
+  });
 
   annotationCanvas.addEventListener("dblclick", clearAnnotations);
-  annotationCanvas.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
+  annotationCanvas.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
     clearAnnotations();
   });
 
   function clearAnnotations() {
-    if (!ctx) return;
+    if (!ctx) {
+      return;
+    }
     ctx.clearRect(0, 0, annotationCanvas.width, annotationCanvas.height);
   }
 
-  // ===== BACK BUTTONS =====
-  startConsultationBtn.addEventListener("click", goToBodyMap);
-  backFromBodyMap.addEventListener("click", goToWelcome);
-  backFromCondition.addEventListener("click", goToBodyMap);
-  backFromTray.addEventListener("click", goToBodyMap);
-
-  // Recent items
-  recentList.addEventListener("click", (e) => {
-    const btn = e.target.closest(".recent-item");
-    if (!btn) return;
-    const id = Number(btn.dataset.id);
-    const condition = conditions.find(c => c.id === id);
-    if (condition && condition.images && condition.images.length > 0) {
-      goToTray(condition);
-    }
-  });
-
-  // Quick links
-  quickLinks.forEach(link => {
-    link.addEventListener("click", (e) => {
-      const region = e.target.dataset.region;
-      goToConditions(region);
-    });
-  });
-
-  // ===== UTILITY =====
-  function esc(s) {
-    const d = document.createElement("div");
-    d.textContent = s;
-    return d.innerHTML;
+  function esc(value) {
+    const element = document.createElement("div");
+    element.textContent = value || "";
+    return element.innerHTML;
   }
 
-  // ===== INIT =====
+  async function loadConditions() {
+    const response = await fetch("/api/conditions");
+    const rawConditions = await response.json();
+    conditions = rawConditions.map(enrichCondition).filter((condition) => condition._sectionKey);
+    availableSections = getSectionData();
+    activeSectionKey = availableSections[0]?.key || null;
+  }
+
   await loadConditions();
-  showScreen(welcomeScreen);
+  renderHome();
+  showHome();
 })();
