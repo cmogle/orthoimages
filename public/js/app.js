@@ -3,6 +3,8 @@
   const homeScreen = document.getElementById("homeScreen");
   const browserScreen = document.getElementById("browserScreen");
   const sectionGrid = document.getElementById("sectionGrid");
+  const homeSearchForm = document.getElementById("homeSearchForm");
+  const homeSearchInput = document.getElementById("homeSearchInput");
   const sectionTabs = document.getElementById("sectionTabs");
   const browserEyebrow = document.getElementById("browserEyebrow");
   const browserTitle = document.getElementById("browserTitle");
@@ -16,6 +18,7 @@
   const imageGrid = document.getElementById("imageGrid");
   const emptyGridState = document.getElementById("emptyGridState");
   const backToHome = document.getElementById("backToHome");
+  const homeNotice = document.getElementById("homeNotice");
 
   const overlay = document.getElementById("overlay");
   const overlayTitle = document.getElementById("overlayTitle");
@@ -38,11 +41,11 @@
       summary: "Cervical and cranial reference images",
     },
     {
-      key: "shoulders",
-      label: "Shoulders",
+      key: "upper-limb",
+      label: "Upper Limb",
       regions: ["shoulder", "elbow", "wrist", "hand"],
       accent: "section-card--shoulders",
-      summary: "Shoulder and upper-limb reference images",
+      summary: "Shoulder, elbow, wrist, and hand reference images",
     },
     {
       key: "spine",
@@ -70,9 +73,18 @@
       label: "Ankle",
       regions: ["ankle", "foot"],
       accent: "section-card--ankle",
-      summary: "Ankle, Achilles, plantar, and forefoot references",
+      summary: "Lower-leg, ankle, and forefoot references",
+    },
+    {
+      key: "other",
+      label: "Other",
+      regions: [],
+      accent: "section-card--other",
+      summary: "Unmapped or uncategorized reference images",
     },
   ];
+  const ALL_SECTIONS_KEY = "all-sections";
+  const FALLBACK_SECTION_KEY = "other";
 
   let conditions = [];
   let availableSections = [];
@@ -97,17 +109,40 @@
     return (value || "").trim().toLowerCase();
   }
 
-  function enrichCondition(condition) {
-    const section = SECTION_CONFIG.find((entry) =>
-      entry.regions.includes(normalizeRegion(condition.body_region))
+  function getSectionForRegion(region) {
+    return (
+      SECTION_CONFIG.find((entry) => entry.regions.includes(region)) ||
+      SECTION_CONFIG.find((entry) => entry.key === FALLBACK_SECTION_KEY) ||
+      null
     );
+  }
+
+  function getHomeNoticeMessage() {
+    return homeNotice.textContent || "";
+  }
+
+  function showHomeNotice(message, tone = "info") {
+    homeNotice.textContent = message;
+    homeNotice.dataset.tone = tone;
+    homeNotice.style.display = "";
+  }
+
+  function hideHomeNotice() {
+    homeNotice.textContent = "";
+    homeNotice.style.display = "none";
+    delete homeNotice.dataset.tone;
+  }
+
+  function enrichCondition(condition) {
+    const region = normalizeRegion(condition.body_region);
+    const section = getSectionForRegion(region);
 
     const images = (condition.images || []).map((image, index) => ({
       ...image,
       _conditionId: condition.id,
       _conditionName: condition.name,
       _conditionAliases: condition.aliases || "",
-      _region: normalizeRegion(condition.body_region),
+      _region: region,
       _sectionKey: section?.key || null,
       _sectionLabel: section?.label || "Other",
       _sortOrder: typeof image.sort_order === "number" ? image.sort_order : index,
@@ -117,7 +152,7 @@
       ...condition,
       _sectionKey: section?.key || null,
       _sectionLabel: section?.label || "Other",
-      _region: normalizeRegion(condition.body_region),
+      _region: region,
       images,
     };
   }
@@ -136,6 +171,27 @@
     }).filter((section) => section.images.length > 0);
   }
 
+  function getAllSectionsData() {
+    const sortedConditions = conditions
+      .slice()
+      .sort(
+        (left, right) =>
+          left._sectionLabel.localeCompare(right._sectionLabel) || left.name.localeCompare(right.name)
+      );
+    const allImages = sortedConditions.flatMap((condition) => condition.images);
+
+    return {
+      key: ALL_SECTIONS_KEY,
+      label: "All Sections",
+      summary: searchQuery
+        ? "Search across the full image bank, then narrow with a section tab."
+        : "Browse the full image bank, then narrow with a section tab.",
+      conditions: sortedConditions,
+      images: allImages,
+      heroImage: allImages[0] || null,
+    };
+  }
+
   function showScreen(screen) {
     homeScreen.style.display = "none";
     browserScreen.style.display = "none";
@@ -143,19 +199,38 @@
   }
 
   function showHome() {
+    homeSearchInput.value = browserSearchInput.value.trim();
     showScreen(homeScreen);
   }
 
-  function showBrowser(sectionKey) {
+  function setSearchTerm(value) {
+    const term = (value || "").trim();
+    searchQuery = term.toLowerCase();
+    browserSearchInput.value = term;
+    homeSearchInput.value = term;
+  }
+
+  function showBrowser(sectionKey, options = {}) {
     activeSectionKey = sectionKey;
-    searchQuery = "";
     selectedConditionId = null;
-    browserSearchInput.value = "";
+
+    if (options.preserveSearch) {
+      setSearchTerm(browserSearchInput.value);
+    } else if (typeof options.searchTerm === "string") {
+      setSearchTerm(options.searchTerm);
+    } else {
+      setSearchTerm("");
+    }
+
     renderBrowser();
     showScreen(browserScreen);
   }
 
   function getActiveSection() {
+    if (activeSectionKey === ALL_SECTIONS_KEY) {
+      return getAllSectionsData();
+    }
+
     return availableSections.find((section) => section.key === activeSectionKey) || availableSections[0] || null;
   }
 
@@ -177,43 +252,15 @@
     return haystack.includes(searchQuery);
   }
 
-  function getVisibleConditions(section) {
-    if (!section) {
-      return [];
-    }
-
-    return section.conditions.filter((condition) =>
-      condition.images.some((image) => matchesSearch(condition, image))
-    );
-  }
-
-  function getVisibleImages(section) {
-    if (!section) {
-      return [];
-    }
-
-    const baseConditions = section.conditions.filter((condition) =>
-      !selectedConditionId || condition.id === selectedConditionId
-    );
-
-    return baseConditions
-      .flatMap((condition) =>
-        condition.images
-          .filter((image) => matchesSearch(condition, image))
-          .map((image) => ({
-            condition,
-            image,
-          }))
-      )
-      .sort((left, right) => {
-        if (left.condition.name !== right.condition.name) {
-          return left.condition.name.localeCompare(right.condition.name);
-        }
-        return Number(left.image._sortOrder) - Number(right.image._sortOrder);
-      });
-  }
-
   function renderHome() {
+    if (!availableSections.length) {
+      sectionGrid.innerHTML = "";
+      if (!getHomeNoticeMessage()) {
+        showHomeNotice("No demo content is available yet. Add at least one condition and image in Admin.", "info");
+      }
+      return;
+    }
+
     sectionGrid.innerHTML = availableSections
       .map((section) => {
         const style = section.heroImage
@@ -243,7 +290,9 @@
   }
 
   function renderSectionTabs(section) {
-    sectionTabs.innerHTML = availableSections
+    const tabSections = [getAllSectionsData(), ...availableSections];
+
+    sectionTabs.innerHTML = tabSections
       .map(
         (entry) => `
           <button
@@ -261,30 +310,92 @@
       button.addEventListener("click", () => {
         activeSectionKey = button.dataset.sectionTab;
         selectedConditionId = null;
-        searchQuery = "";
-        browserSearchInput.value = "";
+        setSearchTerm(browserSearchInput.value);
         renderBrowser();
       });
     });
   }
 
-  function renderConditionList(section, visibleConditions) {
-    const totalImages = section.images.length;
-    conditionPanelTitle.textContent = `All ${section.label}`;
-    conditionPanelMeta.textContent = `${visibleConditions.length} conditions`;
+  function getMatchedImages(condition) {
+    return condition.images.filter((image) => matchesSearch(condition, image));
+  }
 
-    const searchFilteredIds = new Set(visibleConditions.map((condition) => condition.id));
+  function buildVisibleState(section) {
+    if (!section) {
+      return {
+        visibleConditions: [],
+        visibleImages: [],
+        activeCondition: null,
+        visibleCounts: new Map(),
+        allVisibleImageCount: 0,
+      };
+    }
+
+    const visibleConditions = section.conditions.filter((condition) => getMatchedImages(condition).length > 0);
+    const visibleConditionIds = new Set(visibleConditions.map((condition) => condition.id));
+
+    if (selectedConditionId && !visibleConditionIds.has(selectedConditionId)) {
+      selectedConditionId = null;
+    }
+
+    const visibleCounts = new Map(
+      visibleConditions.map((condition) => [condition.id, getMatchedImages(condition).length])
+    );
+    const allVisibleImageCount = Array.from(visibleCounts.values()).reduce((sum, count) => sum + count, 0);
+
+    const activeCondition = selectedConditionId
+      ? section.conditions.find((condition) => condition.id === selectedConditionId) || null
+      : null;
+
+    const baseConditions = activeCondition ? [activeCondition] : visibleConditions;
+    const visibleImages = baseConditions
+      .flatMap((condition) =>
+        getMatchedImages(condition).map((image) => ({
+          condition,
+          image,
+        }))
+      )
+      .sort((left, right) => {
+        if (left.condition.name !== right.condition.name) {
+          return left.condition.name.localeCompare(right.condition.name);
+        }
+        return Number(left.image._sortOrder) - Number(right.image._sortOrder);
+      });
+
+    return {
+      visibleConditions,
+      visibleImages,
+      activeCondition,
+      visibleCounts,
+      allVisibleImageCount,
+    };
+  }
+
+  function renderConditionList(section, visibleState) {
+    const { visibleConditions, visibleCounts, allVisibleImageCount } = visibleState;
+    const isAllSections = section.key === ALL_SECTIONS_KEY;
+    conditionPanelTitle.textContent = isAllSections
+      ? searchQuery
+        ? "Matched conditions"
+        : "All conditions"
+      : `All ${section.label}`;
+    conditionPanelMeta.textContent = `${visibleConditions.length} conditions`;
 
     conditionList.innerHTML = `
       <button class="condition-option${selectedConditionId === null ? " is-active" : ""}" type="button" data-condition-id="">
         <span class="condition-option__thumb condition-option__thumb--placeholder"></span>
-        <span class="condition-option__name">All ${esc(section.label)}</span>
-        <span class="condition-option__count">${totalImages}</span>
+        <span class="condition-option__copy">
+          <span class="condition-option__name">${isAllSections ? "All results" : `All ${esc(section.label)}`}</span>
+          ${isAllSections ? '<span class="condition-option__section">Across all body sections</span>' : ""}
+        </span>
+        <span class="condition-option__count">${allVisibleImageCount}</span>
       </button>
       ${visibleConditions
         .map((condition) => {
-          const preview = condition.images[0]
-            ? `<img class="condition-option__thumb" src="${getThumbUrl(condition.images[0])}" alt="${esc(condition.name)}" loading="lazy">`
+          const matchedImages = getMatchedImages(condition);
+          const previewImage = matchedImages[0] || condition.images[0];
+          const preview = previewImage
+            ? `<img class="condition-option__thumb" src="${getThumbUrl(previewImage)}" alt="${esc(condition.name)}" loading="lazy">`
             : `<span class="condition-option__thumb condition-option__thumb--placeholder"></span>`;
 
           return `
@@ -294,17 +405,16 @@
               data-condition-id="${condition.id}"
             >
               ${preview}
-              <span class="condition-option__name">${esc(condition.name)}</span>
-              <span class="condition-option__count">${condition.images.length}</span>
+              <span class="condition-option__copy">
+                <span class="condition-option__name">${esc(condition.name)}</span>
+                ${isAllSections ? `<span class="condition-option__section">${esc(condition._sectionLabel)}</span>` : ""}
+              </span>
+              <span class="condition-option__count">${visibleCounts.get(condition.id) || 0}</span>
             </button>
           `;
         })
         .join("")}
     `;
-
-    if (selectedConditionId && !searchFilteredIds.has(selectedConditionId)) {
-      selectedConditionId = null;
-    }
 
     conditionList.querySelectorAll("[data-condition-id]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -315,12 +425,16 @@
     });
   }
 
-  function renderImageGrid(section, visibleImages) {
-    const activeCondition = selectedConditionId
-      ? section.conditions.find((condition) => condition.id === selectedConditionId)
-      : null;
-
-    imagePanelTitle.textContent = activeCondition ? activeCondition.name : `${section.label} image bank`;
+  function renderImageGrid(section, visibleState) {
+    const { activeCondition, visibleImages } = visibleState;
+    const isAllSections = section.key === ALL_SECTIONS_KEY;
+    imagePanelTitle.textContent = activeCondition
+      ? activeCondition.name
+      : isAllSections
+        ? searchQuery
+          ? "All matching images"
+          : "All images"
+        : `${section.label} image bank`;
     imagePanelMeta.textContent = `${visibleImages.length} image${visibleImages.length === 1 ? "" : "s"}`;
 
     if (!visibleImages.length) {
@@ -335,7 +449,7 @@
         ({ condition, image }, index) => `
           <button class="image-card" type="button" data-image-index="${index}">
             <img class="image-card__thumb" src="${getThumbUrl(image)}" alt="${esc(condition.name)}" loading="lazy">
-            <span class="image-card__section">${esc(section.label)}</span>
+            <span class="image-card__section">${esc(condition._sectionLabel || section.label)}</span>
             <div class="image-card__body">
               <h4>${esc(condition.name)}</h4>
               <p>${esc(image.view_label || image.original_name || "Reference view")}</p>
@@ -360,17 +474,16 @@
       return;
     }
 
-    browserEyebrow.textContent = `${section.label} section`;
+    const isAllSections = section.key === ALL_SECTIONS_KEY;
+    browserEyebrow.textContent = isAllSections ? "Image bank search" : `${section.label} section`;
     browserTitle.textContent = section.label;
     browserSummary.textContent = section.summary;
 
     renderSectionTabs(section);
 
-    const visibleConditions = getVisibleConditions(section);
-    renderConditionList(section, visibleConditions);
-
-    const visibleImages = getVisibleImages(section);
-    renderImageGrid(section, visibleImages);
+    const visibleState = buildVisibleState(section);
+    renderConditionList(section, visibleState);
+    renderImageGrid(section, visibleState);
   }
 
   function openPresentation() {
@@ -440,8 +553,14 @@
 
   backToHome.addEventListener("click", showHome);
 
+  homeSearchForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    showBrowser(ALL_SECTIONS_KEY, { searchTerm: homeSearchInput.value });
+    browserSearchInput.focus();
+  });
+
   browserSearchInput.addEventListener("input", () => {
-    searchQuery = browserSearchInput.value.trim().toLowerCase();
+    setSearchTerm(browserSearchInput.value);
     renderBrowser();
   });
 
@@ -589,13 +708,31 @@
 
   async function loadConditions() {
     const response = await fetch("/api/conditions");
+    if (!response.ok) {
+      throw new Error(`Condition request failed (${response.status})`);
+    }
+
     const rawConditions = await response.json();
-    conditions = rawConditions.map(enrichCondition).filter((condition) => condition._sectionKey);
+    if (!Array.isArray(rawConditions)) {
+      throw new Error("Condition response was not an array");
+    }
+
+    conditions = rawConditions.map(enrichCondition);
     availableSections = getSectionData();
     activeSectionKey = availableSections[0]?.key || null;
   }
 
-  await loadConditions();
+  try {
+    hideHomeNotice();
+    await loadConditions();
+  } catch (error) {
+    console.error("Failed to load conditions", error);
+    conditions = [];
+    availableSections = [];
+    activeSectionKey = null;
+    showHomeNotice("Unable to load the image bank right now. Check the Supabase connection and refresh before the demo.", "error");
+  }
+
   renderHome();
   showHome();
 })();

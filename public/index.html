@@ -12,11 +12,27 @@
       <div class="home-screen__inner">
         <header class="hero-block">
           <p class="eyebrow">OrthoRef Image Bank</p>
-          <h1>Choose a body section. Then browse the images directly.</h1>
+          <h1>Search the image bank or jump into a body section.</h1>
           <p class="hero-copy">
-            Start with anatomy, narrow by condition, and select visually from the image wall.
+            Search conditions and view labels from the homepage, or start with anatomy and refine from there.
           </p>
         </header>
+
+        <div class="home-notice" id="homeNotice" style="display:none"></div>
+
+        <form class="home-search-panel" id="homeSearchForm">
+          <label class="search-field" for="homeSearchInput">
+            <span>Search All Images</span>
+            <input
+              id="homeSearchInput"
+              class="search-input"
+              type="text"
+              autocomplete="off"
+              placeholder="Type a condition or view label"
+            >
+          </label>
+          <button class="home-search-button" type="submit">Search image bank</button>
+        </form>
 
         <div class="section-grid" id="sectionGrid"></div>
 
@@ -92,13 +108,15 @@
       <button class="overlay-close" id="overlayClose" title="Close (Esc)" type="button">✕</button>
     </div>
 
-    <button class="nav-arrow prev" id="navPrev" title="Previous (←)" type="button">‹</button>
-    <button class="nav-arrow next" id="navNext" title="Next (→)" type="button">›</button>
+    <div class="overlay-stage">
+      <button class="nav-arrow prev" id="navPrev" title="Previous (←)" type="button">‹</button>
+      <button class="nav-arrow next" id="navNext" title="Next (→)" type="button">›</button>
 
-    <div class="image-container" id="imageContainer">
-      <img id="presentationImage" src="" alt="">
-      <canvas class="annotation-canvas" id="annotationCanvas"></canvas>
-      <div class="annotation-hint" id="annotationHint">Draw to annotate · Double-click to clear</div>
+      <div class="image-container" id="imageContainer">
+        <img id="presentationImage" src="" alt="">
+        <canvas class="annotation-canvas" id="annotationCanvas"></canvas>
+        <div class="annotation-hint" id="annotationHint">Draw to annotate · Double-click to clear</div>
+      </div>
     </div>
 
     <div class="filmstrip" id="dotIndicators"></div>
