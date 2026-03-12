@@ -1,3 +1,4 @@
+import "../lib/load-env.js";
 import { readFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { fileURLToPath } from "node:url";
