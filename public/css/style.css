@@ -344,6 +344,10 @@ a {
   max-width: 540px;
 }
 
+.search-combobox {
+  position: relative;
+}
+
 .search-field span {
   font-size: 0.72rem;
   letter-spacing: 0.16em;
@@ -366,6 +370,79 @@ a {
 .search-input:focus {
   border-color: rgba(191, 108, 50, 0.55);
   box-shadow: 0 0 0 4px rgba(191, 108, 50, 0.12);
+}
+
+.typeahead-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(18, 32, 43, 0.08);
+  border-radius: 20px;
+  background: rgba(251, 248, 242, 0.98);
+  box-shadow: 0 28px 55px rgba(14, 22, 31, 0.14);
+  backdrop-filter: blur(18px);
+  z-index: 20;
+}
+
+.typeahead-option {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.typeahead-option:hover,
+.typeahead-option.is-active {
+  border-color: rgba(191, 108, 50, 0.18);
+  background: rgba(191, 108, 50, 0.08);
+}
+
+.typeahead-option__thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: rgba(18, 32, 43, 0.08);
+}
+
+.typeahead-option__thumb--placeholder {
+  display: block;
+}
+
+.typeahead-option__copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.typeahead-option__name {
+  font-weight: 700;
+}
+
+.typeahead-option__meta {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.typeahead-empty {
+  padding: 12px 14px;
+  border-radius: 16px;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .browser-layout {
@@ -794,6 +871,11 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .typeahead-panel {
+    left: -2px;
+    right: -2px;
+  }
+
   .browser-header__title h2 {
     font-size: 2.2rem;
   }
@@ -805,6 +887,17 @@ a {
   .image-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+  }
+
+  .typeahead-option {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px 10px;
+  }
+
+  .typeahead-option__thumb {
+    width: 44px;
+    height: 44px;
   }
 
   .image-card__body h4,

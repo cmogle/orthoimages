@@ -23,13 +23,26 @@
         <form class="home-search-panel" id="homeSearchForm">
           <label class="search-field" for="homeSearchInput">
             <span>Search All Images</span>
-            <input
-              id="homeSearchInput"
-              class="search-input"
-              type="text"
-              autocomplete="off"
-              placeholder="Type a condition or view label"
-            >
+            <div class="search-combobox">
+              <input
+                id="homeSearchInput"
+                class="search-input"
+                type="text"
+                autocomplete="off"
+                placeholder="Type a condition or view label"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="homeSearchSuggestions"
+              >
+              <div
+                class="typeahead-panel"
+                id="homeSearchSuggestions"
+                role="listbox"
+                aria-label="Suggested conditions"
+                hidden
+              ></div>
+            </div>
           </label>
           <button class="home-search-button" type="submit">Search image bank</button>
         </form>
@@ -58,13 +71,26 @@
       <div class="browser-toolbar">
         <label class="search-field" for="browserSearchInput">
           <span>Search</span>
-          <input
-            id="browserSearchInput"
-            class="search-input"
-            type="text"
-            autocomplete="off"
-            placeholder="Type a condition or view label"
-          >
+          <div class="search-combobox">
+            <input
+              id="browserSearchInput"
+              class="search-input"
+              type="text"
+              autocomplete="off"
+              placeholder="Type a condition or view label"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="browserSearchSuggestions"
+            >
+            <div
+              class="typeahead-panel"
+              id="browserSearchSuggestions"
+              role="listbox"
+              aria-label="Suggested conditions"
+              hidden
+            ></div>
+          </div>
         </label>
       </div>
 

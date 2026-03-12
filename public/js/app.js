@@ -5,11 +5,13 @@
   const sectionGrid = document.getElementById("sectionGrid");
   const homeSearchForm = document.getElementById("homeSearchForm");
   const homeSearchInput = document.getElementById("homeSearchInput");
+  const homeSearchSuggestions = document.getElementById("homeSearchSuggestions");
   const sectionTabs = document.getElementById("sectionTabs");
   const browserEyebrow = document.getElementById("browserEyebrow");
   const browserTitle = document.getElementById("browserTitle");
   const browserSummary = document.getElementById("browserSummary");
   const browserSearchInput = document.getElementById("browserSearchInput");
+  const browserSearchSuggestions = document.getElementById("browserSearchSuggestions");
   const conditionPanelTitle = document.getElementById("conditionPanelTitle");
   const conditionPanelMeta = document.getElementById("conditionPanelMeta");
   const conditionList = document.getElementById("conditionList");
@@ -32,6 +34,7 @@
   const filmstrip = document.getElementById("dotIndicators");
   const annotationHint = document.getElementById("annotationHint");
 
+  const TYPEAHEAD_LIMIT = 8;
   const SECTION_CONFIG = [
     {
       key: "head",
@@ -89,6 +92,7 @@
   let conditions = [];
   let availableSections = [];
   let activeSectionKey = null;
+  let manualSectionKey = null;
   let selectedConditionId = null;
   let searchQuery = "";
   let currentGalleryItems = [];
@@ -96,6 +100,26 @@
   let isDrawing = false;
   let ctx = null;
   let hintTimeout = null;
+  let searchMatchCache = new Map();
+
+  const typeaheadState = {
+    home: {
+      mode: "home",
+      input: homeSearchInput,
+      panel: homeSearchSuggestions,
+      activeIndex: -1,
+      matches: [],
+      blurTimer: null,
+    },
+    browser: {
+      mode: "browser",
+      input: browserSearchInput,
+      panel: browserSearchSuggestions,
+      activeIndex: -1,
+      matches: [],
+      blurTimer: null,
+    },
+  };
 
   function getImageUrl(image) {
     return image?.url || image?.asset_url || (image?.filename ? `/uploads/${image.filename}` : "");
@@ -107,6 +131,71 @@
 
   function normalizeRegion(value) {
     return (value || "").trim().toLowerCase();
+  }
+
+  function normalizeSearchText(value) {
+    return (value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
+  function tokenizeSearchText(value) {
+    return normalizeSearchText(value)
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+
+  function sortImages(left, right, imageScores = new Map()) {
+    const scoreDiff = Number(imageScores.get(right.id) || 0) - Number(imageScores.get(left.id) || 0);
+    if (scoreDiff !== 0) {
+      return scoreDiff;
+    }
+    return Number(left._sortOrder) - Number(right._sortOrder);
+  }
+
+  function scoreTextMatch(text, normalizedQuery, tokens) {
+    if (!normalizedQuery) {
+      return 0;
+    }
+
+    const normalizedText = normalizeSearchText(text);
+    if (!normalizedText) {
+      return 0;
+    }
+
+    const compactText = normalizedText.replace(/\s+/g, "");
+    const compactQuery = normalizedQuery.replace(/\s+/g, "");
+
+    let score = 0;
+    if (normalizedText === normalizedQuery) {
+      score += 180;
+    }
+    if (compactText === compactQuery) {
+      score += 160;
+    }
+    if (normalizedText.startsWith(normalizedQuery)) {
+      score += 120;
+    }
+    if (compactText.startsWith(compactQuery)) {
+      score += 90;
+    }
+    if (normalizedText.includes(normalizedQuery)) {
+      score += 70;
+    }
+    if (compactText.includes(compactQuery)) {
+      score += 45;
+    }
+
+    const matchedTokens = tokens.filter((token) => normalizedText.includes(token) || compactText.includes(token)).length;
+    if (matchedTokens) {
+      score += matchedTokens * 18;
+    }
+    if (tokens.length && matchedTokens === tokens.length) {
+      score += 24;
+    }
+
+    return score;
   }
 
   function getSectionForRegion(region) {
@@ -184,12 +273,154 @@
       key: ALL_SECTIONS_KEY,
       label: "All Sections",
       summary: searchQuery
-        ? "Search across the full image bank, then narrow with a section tab."
+        ? "Universal condition search across the full image bank."
         : "Browse the full image bank, then narrow with a section tab.",
       conditions: sortedConditions,
       images: allImages,
       heroImage: allImages[0] || null,
     };
+  }
+
+  function getConditionSearchMatch(condition, query = searchQuery) {
+    const normalizedQuery = normalizeSearchText(query);
+    const cacheKey = `${condition.id}::${normalizedQuery}`;
+    if (searchMatchCache.has(cacheKey)) {
+      return searchMatchCache.get(cacheKey);
+    }
+
+    let result = null;
+    if (!normalizedQuery) {
+      const matchedImages = condition.images.slice().sort((left, right) => sortImages(left, right));
+      result = {
+        condition,
+        score: 0,
+        matchedImages,
+        bestImage: matchedImages[0] || null,
+      };
+      searchMatchCache.set(cacheKey, result);
+      return result;
+    }
+
+    const tokens = tokenizeSearchText(normalizedQuery);
+    const nameScore = scoreTextMatch(condition.name, normalizedQuery, tokens);
+    const aliasScore = scoreTextMatch(condition.aliases, normalizedQuery, tokens);
+    const regionScore = scoreTextMatch(condition.body_region, normalizedQuery, tokens);
+    const sectionScore = scoreTextMatch(condition._sectionLabel, normalizedQuery, tokens);
+    const conditionScore = nameScore * 5 + aliasScore * 3 + regionScore * 2 + sectionScore;
+
+    const imageScores = new Map();
+    let highestImageScore = 0;
+
+    for (const image of condition.images) {
+      const imageScore =
+        scoreTextMatch(image.view_label, normalizedQuery, tokens) * 3 +
+        scoreTextMatch(image.original_name, normalizedQuery, tokens);
+      imageScores.set(image.id, imageScore);
+      if (imageScore > highestImageScore) {
+        highestImageScore = imageScore;
+      }
+    }
+
+    if (!conditionScore && !highestImageScore) {
+      searchMatchCache.set(cacheKey, null);
+      return null;
+    }
+
+    const matchedImages = (conditionScore
+      ? condition.images
+      : condition.images.filter((image) => Number(imageScores.get(image.id) || 0) > 0)
+    ).slice();
+
+    matchedImages.sort((left, right) => sortImages(left, right, imageScores));
+
+    result = {
+      condition,
+      score: conditionScore + highestImageScore * 2 + matchedImages.length,
+      matchedImages,
+      bestImage: matchedImages[0] || condition.images[0] || null,
+    };
+    searchMatchCache.set(cacheKey, result);
+    return result;
+  }
+
+  function getUniversalMatches(query = searchQuery) {
+    const normalizedQuery = normalizeSearchText(query);
+    const matches = conditions
+      .map((condition) => getConditionSearchMatch(condition, normalizedQuery))
+      .filter(Boolean);
+
+    if (!normalizedQuery) {
+      return matches.sort(
+        (left, right) =>
+          left.condition._sectionLabel.localeCompare(right.condition._sectionLabel) ||
+          left.condition.name.localeCompare(right.condition.name)
+      );
+    }
+
+    return matches.sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.condition._sectionLabel.localeCompare(right.condition._sectionLabel) ||
+        left.condition.name.localeCompare(right.condition.name)
+    );
+  }
+
+  function getMatchedImages(condition) {
+    return getConditionSearchMatch(condition)?.matchedImages || [];
+  }
+
+  function getDisplaySearchTerm() {
+    return browserSearchInput.value.trim() || homeSearchInput.value.trim();
+  }
+
+  function getHomeSections() {
+    if (!searchQuery) {
+      return availableSections;
+    }
+
+    const matches = getUniversalMatches();
+    const groupedSections = new Map(
+      availableSections.map((section) => [
+        section.key,
+        {
+          ...section,
+          conditions: [],
+          images: [],
+          heroImage: null,
+          heroScore: -1,
+          summary: "",
+        },
+      ])
+    );
+
+    for (const match of matches) {
+      const sectionKey = match.condition._sectionKey || FALLBACK_SECTION_KEY;
+      const bucket = groupedSections.get(sectionKey);
+      if (!bucket) {
+        continue;
+      }
+
+      bucket.conditions.push(match.condition);
+      bucket.images.push(...match.matchedImages);
+
+      if (match.score > bucket.heroScore) {
+        bucket.heroImage = match.bestImage;
+        bucket.heroScore = match.score;
+      }
+    }
+
+    return Array.from(groupedSections.values())
+      .filter((section) => section.conditions.length > 0)
+      .map((section) => ({
+        ...section,
+        summary: `${section.conditions.length} matching condition${section.conditions.length === 1 ? "" : "s"} · ${section.images.length} relevant image${section.images.length === 1 ? "" : "s"}`,
+      }))
+      .sort(
+        (left, right) =>
+          right.conditions.length - left.conditions.length ||
+          right.images.length - left.images.length ||
+          left.label.localeCompare(right.label)
+      );
   }
 
   function showScreen(screen) {
@@ -198,22 +429,127 @@
     screen.style.display = "";
   }
 
+  function setSearchTerm(value) {
+    const term = (value || "").trim();
+    searchQuery = normalizeSearchText(term);
+    browserSearchInput.value = term;
+    homeSearchInput.value = term;
+    searchMatchCache = new Map();
+  }
+
+  function closeTypeahead(mode) {
+    const state = typeaheadState[mode];
+    if (!state) {
+      return;
+    }
+
+    window.clearTimeout(state.blurTimer);
+    state.activeIndex = -1;
+    state.matches = [];
+    state.panel.hidden = true;
+    state.panel.innerHTML = "";
+    state.input.setAttribute("aria-expanded", "false");
+    state.input.removeAttribute("aria-activedescendant");
+  }
+
+  function closeAllTypeahead(exceptMode = null) {
+    Object.keys(typeaheadState).forEach((mode) => {
+      if (mode !== exceptMode) {
+        closeTypeahead(mode);
+      }
+    });
+  }
+
+  function updateTypeaheadActiveOption(mode) {
+    const state = typeaheadState[mode];
+    const options = state.panel.querySelectorAll("[data-typeahead-index]");
+
+    options.forEach((option, index) => {
+      const isActive = index === state.activeIndex;
+      option.classList.toggle("is-active", isActive);
+      option.setAttribute("aria-selected", isActive ? "true" : "false");
+      if (isActive) {
+        state.input.setAttribute("aria-activedescendant", option.id);
+        option.scrollIntoView({ block: "nearest" });
+      }
+    });
+
+    if (state.activeIndex < 0) {
+      state.input.removeAttribute("aria-activedescendant");
+    }
+  }
+
+  function renderTypeahead(mode) {
+    const state = typeaheadState[mode];
+    const term = state.input.value.trim();
+
+    if (!term) {
+      closeTypeahead(mode);
+      return;
+    }
+
+    closeAllTypeahead(mode);
+
+    state.matches = getUniversalMatches(term).slice(0, TYPEAHEAD_LIMIT);
+    if (state.activeIndex >= state.matches.length) {
+      state.activeIndex = -1;
+    }
+
+    if (!state.matches.length) {
+      state.panel.innerHTML = '<div class="typeahead-empty">No conditions match this search yet.</div>';
+      state.panel.hidden = false;
+      state.input.setAttribute("aria-expanded", "true");
+      return;
+    }
+
+    state.panel.innerHTML = state.matches
+      .map((match, index) => {
+        const preview = match.bestImage
+          ? `<img class="typeahead-option__thumb" src="${getThumbUrl(match.bestImage)}" alt="${esc(match.condition.name)}" loading="lazy">`
+          : '<span class="typeahead-option__thumb typeahead-option__thumb--placeholder"></span>';
+
+        return `
+          <button
+            class="typeahead-option${index === state.activeIndex ? " is-active" : ""}"
+            id="${mode}TypeaheadOption${index}"
+            type="button"
+            role="option"
+            aria-selected="${index === state.activeIndex ? "true" : "false"}"
+            data-typeahead-index="${index}"
+          >
+            ${preview}
+            <span class="typeahead-option__copy">
+              <span class="typeahead-option__name">${esc(match.condition.name)}</span>
+              <span class="typeahead-option__meta">${esc(match.condition._sectionLabel)} · ${match.matchedImages.length} matching image${match.matchedImages.length === 1 ? "" : "s"}</span>
+            </span>
+          </button>
+        `;
+      })
+      .join("");
+
+    state.panel.hidden = false;
+    state.input.setAttribute("aria-expanded", "true");
+    updateTypeaheadActiveOption(mode);
+
+    state.panel.querySelectorAll("[data-typeahead-index]").forEach((button) => {
+      button.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+      });
+
+      button.addEventListener("click", () => {
+        selectTypeaheadMatch(mode, Number(button.dataset.typeaheadIndex));
+      });
+    });
+  }
+
   function showHome() {
-    homeSearchInput.value = browserSearchInput.value.trim();
+    setSearchTerm(browserSearchInput.value);
+    renderHome();
+    closeAllTypeahead();
     showScreen(homeScreen);
   }
 
-  function setSearchTerm(value) {
-    const term = (value || "").trim();
-    searchQuery = term.toLowerCase();
-    browserSearchInput.value = term;
-    homeSearchInput.value = term;
-  }
-
   function showBrowser(sectionKey, options = {}) {
-    activeSectionKey = sectionKey;
-    selectedConditionId = null;
-
     if (options.preserveSearch) {
       setSearchTerm(browserSearchInput.value);
     } else if (typeof options.searchTerm === "string") {
@@ -222,8 +558,36 @@
       setSearchTerm("");
     }
 
+    activeSectionKey = sectionKey;
+    if (sectionKey && sectionKey !== ALL_SECTIONS_KEY) {
+      manualSectionKey = sectionKey;
+    }
+
+    selectedConditionId = typeof options.selectedConditionId === "number" ? options.selectedConditionId : null;
+
+    renderHome();
     renderBrowser();
+    closeAllTypeahead();
     showScreen(browserScreen);
+  }
+
+  function focusCondition(condition) {
+    showBrowser(condition._sectionKey || ALL_SECTIONS_KEY, {
+      searchTerm: condition.name,
+      selectedConditionId: condition.id,
+    });
+    browserSearchInput.focus();
+  }
+
+  function selectTypeaheadMatch(mode, index) {
+    const state = typeaheadState[mode];
+    const match = state.matches[index];
+    if (!match) {
+      return;
+    }
+
+    closeAllTypeahead();
+    focusCondition(match.condition);
   }
 
   function getActiveSection() {
@@ -234,34 +598,32 @@
     return availableSections.find((section) => section.key === activeSectionKey) || availableSections[0] || null;
   }
 
-  function matchesSearch(condition, image) {
-    if (!searchQuery) {
-      return true;
-    }
-
-    const haystack = [
-      condition.name,
-      condition.aliases,
-      condition.body_region,
-      image.view_label,
-      image.original_name,
-    ]
-      .join(" ")
-      .toLowerCase();
-
-    return haystack.includes(searchQuery);
-  }
-
   function renderHome() {
-    if (!availableSections.length) {
+    const homeSections = getHomeSections();
+
+    if (!homeSections.length) {
       sectionGrid.innerHTML = "";
+
+      if (homeNotice.dataset.tone === "error" && !conditions.length) {
+        return;
+      }
+
+      if (searchQuery) {
+        showHomeNotice(`No conditions match "${getDisplaySearchTerm()}". Try another term or browse by section.`, "info");
+        return;
+      }
+
       if (!getHomeNoticeMessage()) {
         showHomeNotice("No demo content is available yet. Add at least one condition and image in Admin.", "info");
       }
       return;
     }
 
-    sectionGrid.innerHTML = availableSections
+    if (homeNotice.dataset.tone !== "error") {
+      hideHomeNotice();
+    }
+
+    sectionGrid.innerHTML = homeSections
       .map((section) => {
         const style = section.heroImage
           ? `style="background-image:linear-gradient(180deg, rgba(8,15,20,0.12), rgba(8,15,20,0.88)),url('${getThumbUrl(section.heroImage)}')"`
@@ -285,7 +647,9 @@
       .join("");
 
     sectionGrid.querySelectorAll("[data-section]").forEach((button) => {
-      button.addEventListener("click", () => showBrowser(button.dataset.section));
+      button.addEventListener("click", () => {
+        showBrowser(button.dataset.section, { searchTerm: homeSearchInput.value });
+      });
     });
   }
 
@@ -309,15 +673,13 @@
     sectionTabs.querySelectorAll("[data-section-tab]").forEach((button) => {
       button.addEventListener("click", () => {
         activeSectionKey = button.dataset.sectionTab;
+        if (activeSectionKey !== ALL_SECTIONS_KEY) {
+          manualSectionKey = activeSectionKey;
+        }
         selectedConditionId = null;
-        setSearchTerm(browserSearchInput.value);
         renderBrowser();
       });
     });
-  }
-
-  function getMatchedImages(condition) {
-    return condition.images.filter((image) => matchesSearch(condition, image));
   }
 
   function buildVisibleState(section) {
@@ -356,6 +718,12 @@
         }))
       )
       .sort((left, right) => {
+        const leftMatch = getConditionSearchMatch(left.condition);
+        const rightMatch = getConditionSearchMatch(right.condition);
+
+        if ((rightMatch?.score || 0) !== (leftMatch?.score || 0)) {
+          return (rightMatch?.score || 0) - (leftMatch?.score || 0);
+        }
         if (left.condition.name !== right.condition.name) {
           return left.condition.name.localeCompare(right.condition.name);
         }
@@ -396,7 +764,7 @@
           const previewImage = matchedImages[0] || condition.images[0];
           const preview = previewImage
             ? `<img class="condition-option__thumb" src="${getThumbUrl(previewImage)}" alt="${esc(condition.name)}" loading="lazy">`
-            : `<span class="condition-option__thumb condition-option__thumb--placeholder"></span>`;
+            : '<span class="condition-option__thumb condition-option__thumb--placeholder"></span>';
 
           return `
             <button
@@ -475,9 +843,19 @@
     }
 
     const isAllSections = section.key === ALL_SECTIONS_KEY;
-    browserEyebrow.textContent = isAllSections ? "Image bank search" : `${section.label} section`;
+    const displaySearchTerm = getDisplaySearchTerm();
+
+    browserEyebrow.textContent = searchQuery
+      ? "Universal image search"
+      : isAllSections
+        ? "Image bank search"
+        : `${section.label} section`;
     browserTitle.textContent = section.label;
-    browserSummary.textContent = section.summary;
+    browserSummary.textContent = displaySearchTerm
+      ? isAllSections
+        ? `Showing the best condition matches for "${displaySearchTerm}" across the full bank.`
+        : `Showing ${section.label.toLowerCase()} matches for "${displaySearchTerm}".`
+      : section.summary;
 
     renderSectionTabs(section);
 
@@ -551,18 +929,101 @@
     showCurrentImage();
   }
 
+  function handleHomeSearchInput() {
+    selectedConditionId = null;
+    setSearchTerm(homeSearchInput.value);
+    renderHome();
+    renderTypeahead("home");
+  }
+
+  function handleBrowserSearchInput() {
+    const nextTerm = browserSearchInput.value;
+    const hadSearch = Boolean(searchQuery);
+
+    selectedConditionId = null;
+    setSearchTerm(nextTerm);
+
+    if (searchQuery) {
+      if (!hadSearch && activeSectionKey && activeSectionKey !== ALL_SECTIONS_KEY) {
+        manualSectionKey = activeSectionKey;
+      }
+      activeSectionKey = ALL_SECTIONS_KEY;
+    } else if (activeSectionKey === ALL_SECTIONS_KEY) {
+      activeSectionKey = manualSectionKey || availableSections[0]?.key || ALL_SECTIONS_KEY;
+    }
+
+    renderHome();
+    renderBrowser();
+    renderTypeahead("browser");
+  }
+
+  function bindTypeahead(mode) {
+    const state = typeaheadState[mode];
+
+    state.input.addEventListener("focus", () => {
+      if (state.input.value.trim()) {
+        renderTypeahead(mode);
+      }
+    });
+
+    state.input.addEventListener("blur", () => {
+      window.clearTimeout(state.blurTimer);
+      state.blurTimer = window.setTimeout(() => closeTypeahead(mode), 120);
+    });
+
+    state.input.addEventListener("keydown", (event) => {
+      const isOpen = !state.panel.hidden;
+
+      if (event.key === "Escape") {
+        closeTypeahead(mode);
+        return;
+      }
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        if (!isOpen) {
+          renderTypeahead(mode);
+        }
+        if (!state.matches.length) {
+          return;
+        }
+        state.activeIndex = Math.min(state.activeIndex + 1, state.matches.length - 1);
+        updateTypeaheadActiveOption(mode);
+        return;
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        if (!state.matches.length) {
+          return;
+        }
+        state.activeIndex = Math.max(state.activeIndex - 1, 0);
+        updateTypeaheadActiveOption(mode);
+        return;
+      }
+
+      if (event.key === "Enter" && state.activeIndex >= 0) {
+        event.preventDefault();
+        selectTypeaheadMatch(mode, state.activeIndex);
+      }
+    });
+  }
+
   backToHome.addEventListener("click", showHome);
+
+  homeSearchInput.addEventListener("input", handleHomeSearchInput);
+  browserSearchInput.addEventListener("input", handleBrowserSearchInput);
 
   homeSearchForm.addEventListener("submit", (event) => {
     event.preventDefault();
+    closeAllTypeahead();
+    selectedConditionId = null;
     showBrowser(ALL_SECTIONS_KEY, { searchTerm: homeSearchInput.value });
     browserSearchInput.focus();
   });
 
-  browserSearchInput.addEventListener("input", () => {
-    setSearchTerm(browserSearchInput.value);
-    renderBrowser();
-  });
+  bindTypeahead("home");
+  bindTypeahead("browser");
 
   navPrev.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -579,6 +1040,12 @@
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay) {
       closePresentation();
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".search-combobox")) {
+      closeAllTypeahead();
     }
   });
 
@@ -720,6 +1187,7 @@
     conditions = rawConditions.map(enrichCondition);
     availableSections = getSectionData();
     activeSectionKey = availableSections[0]?.key || null;
+    manualSectionKey = activeSectionKey;
   }
 
   try {
@@ -730,7 +1198,11 @@
     conditions = [];
     availableSections = [];
     activeSectionKey = null;
-    showHomeNotice("Unable to load the image bank right now. Check the Supabase connection and refresh before the demo.", "error");
+    manualSectionKey = null;
+    showHomeNotice(
+      "Unable to load the image bank right now. Check the Supabase connection and refresh before the demo.",
+      "error"
+    );
   }
 
   renderHome();
